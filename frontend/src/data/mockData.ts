@@ -206,6 +206,10 @@ export const MOCK_TEAMS: Team[] = [
   }
 ];
 
+// Alias Exports for Backwards Compatibility
+export const initialBrazilTeam = MOCK_TEAMS[0];
+export const initialJapanTeam = MOCK_TEAMS[1];
+
 // Preset Fixtures
 export const MOCK_FIXTURES: MatchFixture[] = [
   {
