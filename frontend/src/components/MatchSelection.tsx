@@ -1,24 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Competition, MatchFixture, Team } from '../types/tactics';
-import { MOCK_COMPETITIONS, MOCK_FIXTURES, MOCK_TEAMS } from '../data/mockData';
-import { Trophy, Calendar, Sparkles, ArrowRight, Swords, Shield } from 'lucide-react';
+import { fetchCompetitions, fetchMatchesByCompetition, fetchTeams, triggerSyncWorldCup } from '../services/api';
+import { Trophy, Calendar, Sparkles, ArrowRight, Swords, Shield, RefreshCw } from 'lucide-react';
 
 interface MatchSelectionProps {
   onSelectMatch: (homeTeam: Team, awayTeam: Team, stage?: string) => void;
 }
 
 export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch }) => {
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedCompCode, setSelectedCompCode] = useState<string>('WC');
-  const [customHomeTeamId, setCustomHomeTeamId] = useState<string>(MOCK_TEAMS[0].id); // Brasil
-  const [customAwayTeamId, setCustomAwayTeamId] = useState<string>(MOCK_TEAMS[1].id); // Japão
+  const [fixtures, setFixtures] = useState<MatchFixture[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  
+  const [customHomeTeamId, setCustomHomeTeamId] = useState<string>('');
+  const [customAwayTeamId, setCustomAwayTeamId] = useState<string>('');
+  
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
-  const activeCompetition = MOCK_COMPETITIONS.find((c) => c.code === selectedCompCode) || MOCK_COMPETITIONS[0];
-  const filteredFixtures = MOCK_FIXTURES.filter((f) => f.competitionCode === selectedCompCode);
+  useEffect(() => {
+    async function loadInitialData() {
+      const compData = await fetchCompetitions();
+      setCompetitions(compData);
+      
+      const teamData = await fetchTeams();
+      setTeams(teamData);
+      if (teamData.length >= 2) {
+        setCustomHomeTeamId(teamData[0].id);
+        setCustomAwayTeamId(teamData[1].id);
+      }
+    }
+    loadInitialData();
+  }, []);
+
+  useEffect(() => {
+    async function loadMatches() {
+      const matchData = await fetchMatchesByCompetition(selectedCompCode);
+      setFixtures(matchData);
+    }
+    loadMatches();
+  }, [selectedCompCode]);
+
+  const activeCompetition = competitions.find((c) => c.code === selectedCompCode) || competitions[0];
 
   const handleStartCustomMatch = () => {
-    const home = MOCK_TEAMS.find((t) => t.id === customHomeTeamId) || MOCK_TEAMS[0];
-    const away = MOCK_TEAMS.find((t) => t.id === customAwayTeamId) || MOCK_TEAMS[1];
+    const home = teams.find((t) => t.id === customHomeTeamId) || teams[0];
+    const away = teams.find((t) => t.id === customAwayTeamId) || teams[1];
     onSelectMatch(home, away, 'CONFRONTO PERSONALIZADO');
+  };
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    const res = await triggerSyncWorldCup();
+    setSyncMessage(res.message);
+    setTimeout(() => {
+      setIsSyncing(false);
+      setSyncMessage(null);
+    }, 4000);
   };
 
   return (
@@ -27,28 +66,47 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
       <div className="max-w-6xl mx-auto mb-8 text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-bold mb-3">
           <Sparkles className="w-4 h-4" />
-          PRANCHA TÁTICA PROFISSIONAL
+          PRANCHA TÁTICA PROFISSIONAL • FASTAPI & POSTGRES
         </div>
         <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-2">
           TATIC <span className="text-blue-500">PRO</span>
         </h1>
         <p className="text-slate-400 text-sm md:text-base max-w-2xl mx-auto">
-          Selecione uma competição, escolha uma partida oficial ou monte um confronto personalizado entre qualquer seleção para montar suas táticas de jogo.
+          Sincronização com o Banco de Dados para a Copa do Mundo FIFA 2026. Escolha uma partida oficial ou monte um duelo livre entre seleções.
         </p>
+
+        {/* Sync Status Banner */}
+        {syncMessage && (
+          <div className="mt-3 inline-block px-4 py-1.5 rounded-lg bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 text-xs font-bold">
+            {syncMessage}
+          </div>
+        )}
       </div>
 
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Competitions Selector Bar */}
         <div className="glass-panel p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Trophy className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-200">
-              Competições em Destaque
-            </h2>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-yellow-400" />
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-200">
+                Competições
+              </h2>
+            </div>
+
+            <button
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="btn btn-xs btn-outline-info text-info flex items-center gap-1.5 text-xs font-bold"
+              title="Sincronizar dados da Copa do Mundo no backend"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>Sincronizar Copa</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {MOCK_COMPETITIONS.map((comp) => (
+            {competitions.map((comp) => (
               <button
                 key={comp.code}
                 onClick={() => setSelectedCompCode(comp.code)}
@@ -74,16 +132,16 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Calendar className="w-5 h-5 text-blue-400" />
-              Partidas Cadastradas ({activeCompetition.name})
+              Partidas Cadastradas ({activeCompetition?.name || 'Copa do Mundo'})
             </h3>
             <span className="text-xs text-slate-400 font-mono">
-              Base de Dados Sincronizada
+              PostgreSQL Sync Status: Ativo
             </span>
           </div>
 
-          {filteredFixtures.length > 0 ? (
+          {fixtures.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredFixtures.map((fixture) => (
+              {fixtures.map((fixture) => (
                 <div
                   key={fixture.id}
                   className="glass-panel p-5 hover:border-blue-500/50 transition-all duration-200 group flex flex-col justify-between"
@@ -101,7 +159,10 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
                     <div className="flex items-center justify-between my-2">
                       {/* Home Team */}
                       <div className="flex items-center gap-3">
-                        <span className="w-10 h-10 rounded-full bg-yellow-400 text-slate-950 font-black flex items-center justify-center text-sm border-2 border-slate-900 shadow">
+                        <span 
+                          className="w-10 h-10 rounded-full font-black flex items-center justify-center text-sm border-2 border-slate-900 shadow"
+                          style={{ backgroundColor: fixture.homeTeam.primaryColor, color: fixture.homeTeam.textColor }}
+                        >
                           {fixture.homeTeam.shortName}
                         </span>
                         <div>
@@ -116,7 +177,10 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
 
                       {/* Away Team */}
                       <div className="flex items-center gap-3 text-right flex-row-reverse">
-                        <span className="w-10 h-10 rounded-full bg-blue-600 text-white font-black flex items-center justify-center text-sm border-2 border-white shadow">
+                        <span 
+                          className="w-10 h-10 rounded-full font-black flex items-center justify-center text-sm border-2 border-white shadow"
+                          style={{ backgroundColor: fixture.awayTeam.primaryColor, color: fixture.awayTeam.textColor }}
+                        >
                           {fixture.awayTeam.shortName}
                         </span>
                         <div>
@@ -147,66 +211,68 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
           )}
         </div>
 
-        {/* Custom Matchup Setup (Qualquer Seleção vs Qualquer Seleção) */}
-        <div className="glass-panel p-6 border-2 border-blue-500/30">
-          <div className="flex items-center gap-2 mb-4">
-            <Swords className="w-5 h-5 text-yellow-400" />
-            <div>
-              <h3 className="text-base font-bold text-white">Confronto Personalizado</h3>
-              <p className="text-xs text-slate-400">
-                Monte uma partida entre qualquer seleção ou clube independente da competição.
-              </p>
+        {/* Custom Matchup Setup */}
+        {teams.length >= 2 && (
+          <div className="glass-panel p-6 border-2 border-blue-500/30">
+            <div className="flex items-center gap-2 mb-4">
+              <Swords className="w-5 h-5 text-yellow-400" />
+              <div>
+                <h3 className="text-base font-bold text-white">Confronto Personalizado</h3>
+                <p className="text-xs text-slate-400">
+                  Monte um duelo tático entre qualquer seleção da base de dados do banco.
+                </p>
+              </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {/* Home Team Picker */}
+              <div className="bg-slate-900/80 p-4 rounded-xl border border-white/10">
+                <label className="block text-xs font-bold text-slate-300 mb-2 flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-yellow-400" />
+                  Time A (Mandante / Ataca da Esquerda)
+                </label>
+                <select
+                  value={customHomeTeamId}
+                  onChange={(e) => setCustomHomeTeamId(e.target.value)}
+                  className="w-full bg-slate-950 text-white p-2.5 rounded-lg border border-white/20 text-sm font-semibold outline-none cursor-pointer"
+                >
+                  {teams.map((t) => (
+                    <option key={`home-${t.id}`} value={t.id}>
+                      {t.name} ({t.shortName}) - {t.formation}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Away Team Picker */}
+              <div className="bg-slate-900/80 p-4 rounded-xl border border-white/10">
+                <label className="block text-xs font-bold text-slate-300 mb-2 flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-blue-400" />
+                  Time B (Visitante / Ataca da Direita)
+                </label>
+                <select
+                  value={customAwayTeamId}
+                  onChange={(e) => setCustomAwayTeamId(e.target.value)}
+                  className="w-full bg-slate-950 text-white p-2.5 rounded-lg border border-white/20 text-sm font-semibold outline-none cursor-pointer"
+                >
+                  {teams.map((t) => (
+                    <option key={`away-${t.id}`} value={t.id}>
+                      {t.name} ({t.shortName}) - {t.formation}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={handleStartCustomMatch}
+              className="w-full btn btn-warning text-slate-950 font-extrabold py-2.5 flex items-center justify-center gap-2 shadow-lg hover:brightness-110 transition"
+            >
+              <span>Iniciar Prancha Tática Personalizada</span>
+              <ArrowRight className="w-5 h-5" />
+            </button>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            {/* Home Team Picker */}
-            <div className="bg-slate-900/80 p-4 rounded-xl border border-white/10">
-              <label className="block text-xs font-bold text-slate-300 mb-2 flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-yellow-400" />
-                Time A (Casa / Ataca da Esquerda)
-              </label>
-              <select
-                value={customHomeTeamId}
-                onChange={(e) => setCustomHomeTeamId(e.target.value)}
-                className="w-full bg-slate-950 text-white p-2.5 rounded-lg border border-white/20 text-sm font-semibold outline-none cursor-pointer"
-              >
-                {MOCK_TEAMS.map((t) => (
-                  <option key={`home-${t.id}`} value={t.id}>
-                    {t.name} ({t.shortName}) - {t.formation}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Away Team Picker */}
-            <div className="bg-slate-900/80 p-4 rounded-xl border border-white/10">
-              <label className="block text-xs font-bold text-slate-300 mb-2 flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-blue-400" />
-                Time B (Visitante / Ataca da Direita)
-              </label>
-              <select
-                value={customAwayTeamId}
-                onChange={(e) => setCustomAwayTeamId(e.target.value)}
-                className="w-full bg-slate-950 text-white p-2.5 rounded-lg border border-white/20 text-sm font-semibold outline-none cursor-pointer"
-              >
-                {MOCK_TEAMS.map((t) => (
-                  <option key={`away-${t.id}`} value={t.id}>
-                    {t.name} ({t.shortName}) - {t.formation}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <button
-            onClick={handleStartCustomMatch}
-            className="w-full btn btn-warning text-slate-950 font-extrabold py-2.5 flex items-center justify-center gap-2 shadow-lg hover:brightness-110 transition"
-          >
-            <span>Iniciar Prancha Tática Personalizada</span>
-            <ArrowRight className="w-5 h-5" />
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
