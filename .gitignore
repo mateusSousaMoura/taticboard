@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python & Backend Ignores
+__pycache__/
+*.py[cod]
+*$py.class
+backend/venv/
+backend/*.db
+backend/.env
+.env
