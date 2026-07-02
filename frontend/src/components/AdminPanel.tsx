@@ -14,6 +14,7 @@ import {
   ArrowLeft, 
   RefreshCw, 
   Lock,
+  Search,
   X
 } from 'lucide-react';
 
@@ -34,6 +35,9 @@ export const AdminPanel: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [fixtures, setFixtures] = useState<MatchFixture[]>([]);
   
+  // Admin Search Term Filter
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
@@ -106,7 +110,26 @@ export const AdminPanel: React.FC = () => {
     }, 3000);
   };
 
-  // --- DELETE ACTIONS (FIXED WITH BEARER TOKEN & CASCADE BACKEND) ---
+  // --- SEARCH FILTERS ---
+  const term = searchTerm.toLowerCase().trim();
+
+  const filteredCompetitions = competitions.filter(c => 
+    !term || c.code.toLowerCase().includes(term) || c.name.toLowerCase().includes(term) || c.type.toLowerCase().includes(term)
+  );
+
+  const filteredTeams = teams.filter(t => 
+    !term || t.name.toLowerCase().includes(term) || t.shortName.toLowerCase().includes(term) || (t.code && t.code.toLowerCase().includes(term))
+  );
+
+  const filteredFixtures = fixtures.filter(m => 
+    !term || 
+    m.stage.toLowerCase().includes(term) || 
+    m.homeTeam?.name?.toLowerCase().includes(term) || 
+    m.awayTeam?.name?.toLowerCase().includes(term) ||
+    m.status.toLowerCase().includes(term)
+  );
+
+  // --- DELETE ACTIONS ---
 
   const handleDeleteCompetition = async (code: string) => {
     if (!token) return;
@@ -339,9 +362,31 @@ export const AdminPanel: React.FC = () => {
           </div>
         </div>
 
-        <h1 className="text-2xl md:text-3xl font-extrabold text-white">
-          Gerenciador do Banco de Dados <span className="text-blue-500">(PostgreSQL CRUD)</span>
-        </h1>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <h1 className="text-2xl md:text-3xl font-extrabold text-white">
+            Gerenciador do Banco <span className="text-blue-500">(PostgreSQL CRUD)</span>
+          </h1>
+
+          {/* Search Input Bar */}
+          <div className="relative w-full sm:w-80">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Pesquisar registros..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-900 border border-white/20 rounded-xl pl-9 pr-8 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-2 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
 
         {syncMsg && (
           <div className="mt-2 p-2 rounded bg-yellow-400/20 text-yellow-300 border border-yellow-400/30 text-xs font-bold animate-pulse">
@@ -361,7 +406,7 @@ export const AdminPanel: React.FC = () => {
             }`}
           >
             <Trophy className="w-4 h-4" />
-            <span>Competições ({competitions.length})</span>
+            <span>Competições ({filteredCompetitions.length})</span>
           </button>
 
           <button
@@ -371,7 +416,7 @@ export const AdminPanel: React.FC = () => {
             }`}
           >
             <Shield className="w-4 h-4" />
-            <span>Seleções / Times ({teams.length})</span>
+            <span>Seleções / Times ({filteredTeams.length})</span>
           </button>
 
           <button
@@ -381,7 +426,7 @@ export const AdminPanel: React.FC = () => {
             }`}
           >
             <Calendar className="w-4 h-4" />
-            <span>Partidas / Jogos ({fixtures.length})</span>
+            <span>Partidas / Jogos ({filteredFixtures.length})</span>
           </button>
         </div>
 
@@ -411,7 +456,7 @@ export const AdminPanel: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {competitions.map((comp) => (
+                  {filteredCompetitions.map((comp) => (
                     <tr key={comp.code} className="hover:bg-white/5">
                       <td className="p-2.5 font-mono font-bold text-yellow-400">{comp.code}</td>
                       <td className="p-2.5 font-bold text-white">{comp.name}</td>
@@ -461,7 +506,7 @@ export const AdminPanel: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {teams.map((team) => (
+                  {filteredTeams.map((team) => (
                     <tr key={team.id} className="hover:bg-white/5">
                       <td className="p-2.5 font-mono">{team.id}</td>
                       <td className="p-2.5 font-bold text-white">{team.name}</td>
@@ -481,10 +526,11 @@ export const AdminPanel: React.FC = () => {
                       <td className="p-2.5 flex items-center gap-1">
                         <button
                           onClick={() => navigate(`/admin/teams/edit/${team.id}`)}
-                          className="btn btn-xs btn-outline-info p-1 text-blue-400"
+                          className="btn btn-xs btn-outline-info p-1 text-blue-400 flex items-center gap-1 text-[11px]"
                           title="Página de Edição de Seleção"
                         >
                           <Edit className="w-3.5 h-3.5" />
+                          <span>Editar</span>
                         </button>
 
                         <button
@@ -523,7 +569,7 @@ export const AdminPanel: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {fixtures.map((m) => (
+                  {filteredFixtures.map((m) => (
                     <tr key={m.id} className="hover:bg-white/5">
                       <td className="p-2.5 font-mono text-slate-400">{m.id}</td>
                       <td className="p-2.5 font-bold text-white">{m.stage}</td>

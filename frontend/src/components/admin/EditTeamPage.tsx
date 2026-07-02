@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Team, Player } from '../../types/tactics';
 import { fetchTeams } from '../../services/api';
-import { ArrowLeft, Save, Shield, User, Plus, Trash2, Edit } from 'lucide-react';
+import { ArrowLeft, Save, Shield, User, Plus, Trash2, Edit, ArrowLeftRight, CheckCircle2 } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -20,28 +20,33 @@ export const EditTeamPage: React.FC = () => {
   const [textColor, setTextColor] = useState<string>('#FFFFFF');
   const [formation, setFormation] = useState<string>('4-3-3');
 
+  // Pairwise Substitution State (Starter & Reserve Selection)
+  const [selectedStarterId, setSelectedStarterId] = useState<string | null>(null);
+  const [selectedBenchId, setSelectedBenchId] = useState<string | null>(null);
+  const [subbing, setSubbing] = useState<boolean>(false);
+
   const [saving, setSaving] = useState<boolean>(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  const loadTeam = async () => {
+    const allTeams = await fetchTeams();
+    const found = allTeams.find((t) => t.id === teamId);
+    if (found) {
+      setTeam(found);
+      setName(found.name);
+      setShortName(found.shortName);
+      setCode(found.code || found.shortName);
+      setPrimaryColor(found.primaryColor);
+      setSecondaryColor(found.secondaryColor);
+      setTextColor(found.textColor);
+      setFormation(found.formation);
+    }
+  };
 
   useEffect(() => {
     if (!token) {
       navigate('/admin');
       return;
-    }
-
-    async function loadTeam() {
-      const allTeams = await fetchTeams();
-      const found = allTeams.find((t) => t.id === teamId);
-      if (found) {
-        setTeam(found);
-        setName(found.name);
-        setShortName(found.shortName);
-        setCode(found.code || found.shortName);
-        setPrimaryColor(found.primaryColor);
-        setSecondaryColor(found.secondaryColor);
-        setTextColor(found.textColor);
-        setFormation(found.formation);
-      }
     }
     loadTeam();
   }, [teamId, token, navigate]);
@@ -82,6 +87,47 @@ export const EditTeamPage: React.FC = () => {
     }
   };
 
+  // Perform Simultaneous Pairwise Substitution (Swap 2 players at once)
+  const handlePerformPairwiseSubstitution = async () => {
+    if (!selectedStarterId || !selectedBenchId || !token) return;
+
+    setSubbing(true);
+    try {
+      // 1. Set starter to bench (is_starting: false)
+      const res1 = fetch(`${API_BASE_URL}/admin/players/${selectedStarterId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ is_starting: false })
+      });
+
+      // 2. Set bench to starter (is_starting: true)
+      const res2 = fetch(`${API_BASE_URL}/admin/players/${selectedBenchId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ is_starting: true })
+      });
+
+      await Promise.all([res1, res2]);
+
+      // Reload team state
+      await loadTeam();
+      setSelectedStarterId(null);
+      setSelectedBenchId(null);
+      setMsg('Substituição de titulares realizada com sucesso! (11 Mantidos)');
+    } catch (e) {
+      console.error(e);
+      setMsg('Erro ao realizar substituição');
+    } finally {
+      setSubbing(false);
+    }
+  };
+
   const handleDeletePlayer = async (playerId: string) => {
     if (!confirm('Deseja excluir este jogador?')) return;
     try {
@@ -90,11 +136,7 @@ export const EditTeamPage: React.FC = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        setTeam((prev) => prev ? {
-          ...prev,
-          starting: prev.starting.filter(p => p.id !== playerId),
-          bench: prev.bench.filter(p => p.id !== playerId)
-        } : null);
+        await loadTeam();
       }
     } catch (e) {
       console.error(e);
@@ -111,11 +153,15 @@ export const EditTeamPage: React.FC = () => {
     );
   }
 
-  const allSquadPlayers: Player[] = [...(team.starting || []), ...(team.bench || [])];
+  const startingPlayers = team.starting || [];
+  const benchPlayers = team.bench || [];
+
+  const selectedStarterObj = startingPlayers.find((p) => p.id === selectedStarterId);
+  const selectedBenchObj = benchPlayers.find((p) => p.id === selectedBenchId);
 
   return (
     <div className="w-screen h-screen bg-[#0b1120] text-slate-100 p-4 md:p-6 overflow-y-auto custom-scrollbar">
-      <div className="max-w-4xl mx-auto space-y-4">
+      <div className="max-w-5xl mx-auto space-y-4">
         {/* Top Header */}
         <div className="flex items-center justify-between">
           <button
@@ -246,12 +292,12 @@ export const EditTeamPage: React.FC = () => {
           </button>
         </form>
 
-        {/* Squad Players Management */}
-        <div className="glass-panel p-5 space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-white/10">
+        {/* Pairwise Substitution & Squad Management */}
+        <div className="glass-panel p-5 space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-white/10 flex-wrap gap-2">
             <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <User className="w-4 h-4 text-blue-400" />
-              Elenco de Jogadores ({allSquadPlayers.length})
+              Gestão de Elenco & Substituição de Titulares
             </h2>
 
             <button
@@ -263,46 +309,167 @@ export const EditTeamPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {allSquadPlayers.map((player) => (
-              <div
-                key={player.id}
-                className="p-2.5 rounded-lg bg-slate-900/80 border border-white/10 flex items-center justify-between text-xs"
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <span
-                    className="w-6 h-6 rounded-full font-mono font-bold text-[10px] flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: primaryColor, color: textColor }}
-                  >
-                    {player.number}
-                  </span>
-                  <div className="truncate">
-                    <span className="font-bold text-white block truncate">{player.name}</span>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {player.position} • {player.isStarting ? 'Titular' : 'Reserva'}
-                    </span>
-                  </div>
-                </div>
+          {/* Pairwise Substitution Control Bar */}
+          <div className="p-3 rounded-xl bg-slate-900/90 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs text-slate-300 flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-white flex items-center gap-1">
+                <ArrowLeftRight className="w-4 h-4 text-warning" />
+                Troca Simultânea de Titular:
+              </span>
+              <span>
+                Saindo: <span className="font-bold text-yellow-400">{selectedStarterObj ? `${selectedStarterObj.number}. ${selectedStarterObj.name}` : 'Nenhum selecionado'}</span>
+              </span>
+              <span>•</span>
+              <span>
+                Entrando: <span className="font-bold text-emerald-400">{selectedBenchObj ? `${selectedBenchObj.number}. ${selectedBenchObj.name}` : 'Nenhum selecionado'}</span>
+              </span>
+            </div>
 
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => navigate(`/admin/players/edit/${player.id}`)}
-                    className="btn btn-xs btn-outline-info p-1"
-                    title="Editar Jogador"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                  </button>
+            <button
+              onClick={handlePerformPairwiseSubstitution}
+              disabled={!selectedStarterId || !selectedBenchId || subbing}
+              className={`btn btn-sm text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+                selectedStarterId && selectedBenchId && !subbing
+                  ? 'btn-warning text-slate-950 shadow hover:brightness-110'
+                  : 'btn-outline-secondary text-slate-500 border-white/10 opacity-50 cursor-not-allowed'
+              }`}
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <span>{subbing ? 'Substituindo...' : 'Trocar 2 ao Mesmo Tempo'}</span>
+            </button>
+          </div>
 
-                  <button
-                    onClick={() => handleDeletePlayer(player.id)}
-                    className="btn btn-xs btn-outline-danger p-1"
-                    title="Excluir Jogador"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+          {/* 2 Columns: Titulares (11) vs Reservas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Column 1: Titulares (11) */}
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-white/10">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-yellow-400 mb-2 flex items-center justify-between">
+                <span>⚡ Titulares Iniciais ({startingPlayers.length})</span>
+                <span className="text-[10px] text-slate-400 font-normal">Selecione 1 para sair</span>
+              </h3>
+
+              <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                {startingPlayers.map((player) => {
+                  const isSelected = selectedStarterId === player.id;
+
+                  return (
+                    <div
+                      key={player.id}
+                      onClick={() => setSelectedStarterId(isSelected ? null : player.id)}
+                      className={`p-2 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition ${
+                        isSelected
+                          ? 'bg-yellow-400/20 border-yellow-400 text-white shadow'
+                          : 'bg-slate-900/80 border-white/10 hover:bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span
+                          className="w-6 h-6 rounded-full font-mono font-bold text-[10px] flex items-center justify-center shrink-0"
+                          style={{ backgroundColor: primaryColor, color: textColor }}
+                        >
+                          {player.number}
+                        </span>
+                        <div className="truncate">
+                          <span className="font-bold text-white block truncate">{player.name}</span>
+                          <span className="text-[10px] font-mono text-slate-400">{player.position}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isSelected && <CheckCircle2 className="w-4 h-4 text-yellow-400" />}
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/players/edit/${player.id}`);
+                          }}
+                          className="btn btn-xs btn-outline-info p-1"
+                          title="Editar Jogador"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </button>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePlayer(player.id);
+                          }}
+                          className="btn btn-xs btn-outline-danger p-1"
+                          title="Excluir Jogador"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            </div>
+
+            {/* Column 2: Reservas */}
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-white/10">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-emerald-400 mb-2 flex items-center justify-between">
+                <span>🛡️ Banco de Reservas ({benchPlayers.length})</span>
+                <span className="text-[10px] text-slate-400 font-normal">Selecione 1 para entrar</span>
+              </h3>
+
+              <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                {benchPlayers.map((player) => {
+                  const isSelected = selectedBenchId === player.id;
+
+                  return (
+                    <div
+                      key={player.id}
+                      onClick={() => setSelectedBenchId(isSelected ? null : player.id)}
+                      className={`p-2 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition ${
+                        isSelected
+                          ? 'bg-emerald-500/20 border-emerald-400 text-white shadow'
+                          : 'bg-slate-900/80 border-white/10 hover:bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span
+                          className="w-6 h-6 rounded-full font-mono font-bold text-[10px] flex items-center justify-center shrink-0"
+                          style={{ backgroundColor: primaryColor, color: textColor }}
+                        >
+                          {player.number}
+                        </span>
+                        <div className="truncate">
+                          <span className="font-bold text-white block truncate">{player.name}</span>
+                          <span className="text-[10px] font-mono text-slate-400">{player.position}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/players/edit/${player.id}`);
+                          }}
+                          className="btn btn-xs btn-outline-info p-1"
+                          title="Editar Jogador"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </button>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePlayer(player.id);
+                          }}
+                          className="btn btn-xs btn-outline-danger p-1"
+                          title="Excluir Jogador"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </div>
