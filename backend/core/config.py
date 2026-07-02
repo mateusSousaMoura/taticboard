@@ -1,9 +1,20 @@
 import os
+from pathlib import Path
 from pydantic import BaseModel
 from typing import List
 from dotenv import load_dotenv
 
-load_dotenv()
+# Resolve absolute directory of backend/
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env from backend/ directory or root directory explicitly
+env_file_backend = BASE_DIR / ".env"
+env_file_root = BASE_DIR.parent / ".env"
+
+if env_file_backend.exists():
+    load_dotenv(dotenv_path=env_file_backend)
+if env_file_root.exists():
+    load_dotenv(dotenv_path=env_file_root)
 
 class Settings(BaseModel):
     PROJECT_NAME: str = "TATIC PRO API"
