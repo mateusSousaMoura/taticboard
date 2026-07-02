@@ -38,15 +38,15 @@ export const ControlBar: React.FC<ControlBarProps> = ({
   ];
 
   return (
-    <div className="glass-panel p-2 mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-      {/* Primary Tool Selector */}
-      <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-white/10">
+    <div className="glass-panel p-2 mb-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+      {/* Primary Tool Selector with Bootstrap Button Group */}
+      <div className="btn-group" role="group">
         <button
           onClick={() => setToolMode('select')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
+          className={`btn btn-sm text-xs font-semibold flex items-center gap-1.5 ${
             toolMode === 'select'
-              ? 'bg-blue-600 text-white font-bold shadow'
-              : 'text-slate-300 hover:text-white hover:bg-white/5'
+              ? 'btn-primary text-white shadow-sm'
+              : 'btn-outline-secondary text-slate-300 border-white/20'
           }`}
         >
           <MousePointer className="w-3.5 h-3.5" />
@@ -55,10 +55,10 @@ export const ControlBar: React.FC<ControlBarProps> = ({
 
         <button
           onClick={() => setToolMode('highlight')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
+          className={`btn btn-sm text-xs font-semibold flex items-center gap-1.5 ${
             toolMode === 'highlight'
-              ? 'bg-yellow-400 text-slate-950 font-bold shadow'
-              : 'text-slate-300 hover:text-white hover:bg-white/5'
+              ? 'btn-warning text-dark shadow-sm'
+              : 'btn-outline-secondary text-slate-300 border-white/20'
           }`}
         >
           <Share2 className="w-3.5 h-3.5" />
@@ -67,10 +67,10 @@ export const ControlBar: React.FC<ControlBarProps> = ({
 
         <button
           onClick={() => setToolMode('arrow')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
+          className={`btn btn-sm text-xs font-semibold flex items-center gap-1.5 ${
             toolMode === 'arrow'
-              ? 'bg-emerald-500 text-white font-bold shadow'
-              : 'text-slate-300 hover:text-white hover:bg-white/5'
+              ? 'btn-success text-white shadow-sm'
+              : 'btn-outline-secondary text-slate-300 border-white/20'
           }`}
         >
           <MoveRight className="w-3.5 h-3.5" />
@@ -79,10 +79,10 @@ export const ControlBar: React.FC<ControlBarProps> = ({
 
         <button
           onClick={() => setToolMode('eraser')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition ${
+          className={`btn btn-sm text-xs font-semibold flex items-center gap-1.5 ${
             toolMode === 'eraser'
-              ? 'bg-red-500 text-white font-bold shadow'
-              : 'text-slate-300 hover:text-white hover:bg-white/5'
+              ? 'btn-danger text-white shadow-sm'
+              : 'btn-outline-secondary text-slate-300 border-white/20'
           }`}
         >
           <Eraser className="w-3.5 h-3.5" />
@@ -101,7 +101,7 @@ export const ControlBar: React.FC<ControlBarProps> = ({
                 onClick={() => setDrawingColor(c.value)}
                 className={`w-4 h-4 rounded-full border transition-all ${
                   drawingColor === c.value
-                    ? 'scale-125 border-white ring-2 ring-blue-400'
+                    ? 'scale-125 border-white ring-2 ring-info'
                     : 'border-white/20 hover:scale-110'
                 }`}
                 style={{ backgroundColor: c.value }}
@@ -113,25 +113,27 @@ export const ControlBar: React.FC<ControlBarProps> = ({
           {toolMode === 'highlight' && (
             <>
               <div className="h-3 w-[1px] bg-white/20 mx-1"></div>
-              <button
-                onClick={() => setLineStyle('solid')}
-                className={`px-2 py-0.5 rounded ${lineStyle === 'solid' ? 'bg-white/20 text-white font-bold' : 'text-slate-400'}`}
-              >
-                Sólida
-              </button>
-              <button
-                onClick={() => setLineStyle('dashed')}
-                className={`px-2 py-0.5 rounded ${lineStyle === 'dashed' ? 'bg-white/20 text-white font-bold' : 'text-slate-400'}`}
-              >
-                Tracejada
-              </button>
+              <div className="btn-group btn-group-sm" role="group">
+                <button
+                  onClick={() => setLineStyle('solid')}
+                  className={`btn btn-xs ${lineStyle === 'solid' ? 'btn-light font-bold' : 'btn-outline-secondary text-slate-300'}`}
+                >
+                  Sólida
+                </button>
+                <button
+                  onClick={() => setLineStyle('dashed')}
+                  className={`btn btn-xs ${lineStyle === 'dashed' ? 'btn-light font-bold' : 'btn-outline-secondary text-slate-300'}`}
+                >
+                  Tracejada
+                </button>
+              </div>
             </>
           )}
         </div>
       )}
 
-      {/* Requirement 5: Display View Mode toggle - ONLY Photo vs Numbers/Icons */}
-      <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-white/10">
+      {/* View Mode Toggle with Bootstrap Buttons */}
+      <div className="flex items-center gap-2">
         <button
           onClick={() =>
             setDisplaySettings((prev) => ({
@@ -139,17 +141,17 @@ export const ControlBar: React.FC<ControlBarProps> = ({
               viewMode: prev.viewMode === 'photo' ? 'number' : 'photo'
             }))
           }
-          className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition"
+          className="btn btn-sm btn-outline-info text-info flex items-center gap-1.5 text-xs"
         >
           {displaySettings.viewMode === 'photo' ? (
             <>
-              <User className="w-3.5 h-3.5 text-blue-400" />
-              <span>Exibição: Fotos</span>
+              <User className="w-3.5 h-3.5" />
+              <span>Fotos</span>
             </>
           ) : (
             <>
-              <Shield className="w-3.5 h-3.5 text-yellow-400" />
-              <span>Exibição: Números/Ícones</span>
+              <Shield className="w-3.5 h-3.5" />
+              <span>Números/Ícones</span>
             </>
           )}
         </button>
@@ -161,8 +163,10 @@ export const ControlBar: React.FC<ControlBarProps> = ({
               showNames: !prev.showNames
             }))
           }
-          className={`px-2 py-1 rounded-lg text-xs transition ${
-            displaySettings.showNames ? 'bg-white/20 text-white font-bold' : 'text-slate-400'
+          className={`btn btn-sm text-xs ${
+            displaySettings.showNames
+              ? 'btn-secondary text-white font-bold'
+              : 'btn-outline-secondary text-slate-400'
           }`}
         >
           {displaySettings.showNames ? 'Nomes Visíveis' : 'Nomes Ocultos'}
