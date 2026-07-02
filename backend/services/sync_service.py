@@ -1,106 +1,34 @@
-import time
 import asyncio
-import httpx
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 
-from core.config import settings
 from core.logging import logger
 from models.football import CompetitionModel, TeamModel, PlayerModel, MatchModel
 from database import SessionLocal
+from providers.factory import get_football_provider
 
-# Color mapping helper for parsing API clubColors strings (e.g., "Yellow / Green / Blue")
 COLOR_NAME_MAP = {
-    "yellow": "#FDE047",
-    "amarelo": "#FDE047",
-    "green": "#16A34A",
-    "verde": "#16A34A",
-    "blue": "#2563EB",
-    "azul": "#2563EB",
-    "navy": "#1E3A8A",
-    "red": "#DC2626",
-    "vermelho": "#DC2626",
-    "white": "#FFFFFF",
-    "branco": "#FFFFFF",
-    "black": "#0F172A",
-    "preto": "#0F172A",
-    "orange": "#F97316",
-    "laranja": "#F97316",
-    "sky blue": "#38BDF8",
-    "celeste": "#38BDF8",
-    "maroon": "#881337",
-    "claret": "#701A75",
-    "gold": "#EAB308",
-    "dourado": "#EAB308",
-    "purple": "#9333EA",
+    "yellow": "#FDE047", "amarelo": "#FDE047",
+    "green": "#16A34A", "verde": "#16A34A",
+    "blue": "#2563EB", "azul": "#2563EB",
+    "navy": "#1E3A8A", "red": "#DC2626", "vermelho": "#DC2626",
+    "white": "#FFFFFF", "branco": "#FFFFFF",
+    "black": "#0F172A", "preto": "#0F172A",
+    "orange": "#F97316", "laranja": "#F97316",
+    "sky blue": "#38BDF8", "celeste": "#38BDF8",
+    "maroon": "#881337", "gold": "#EAB308", "purple": "#9333EA",
 }
 
 POSITION_MAPPING = {
-    "Goalkeeper": "GK",
-    "Defence": "CB",
-    "Defender": "CB",
-    "Central Back": "CB",
-    "Left-Back": "LB",
-    "Right-Back": "RB",
-    "Midfield": "CM",
-    "Midfielder": "CM",
-    "Defensive Midfield": "CDM",
-    "Attacking Midfield": "CAM",
-    "Offence": "ST",
-    "Forward": "ST",
-    "Winger": "RW",
-    "Left Winger": "LW",
-    "Right Winger": "RW",
+    "Goalkeeper": "GK", "Defence": "CB", "Defender": "CB", "Central Back": "CB",
+    "Left-Back": "LB", "Right-Back": "RB", "Midfield": "CM", "Midfielder": "CM",
+    "Defensive Midfield": "CDM", "Attacking Midfield": "CAM", "Offence": "ST",
+    "Forward": "ST", "Winger": "RW", "Left Winger": "LW", "Right Winger": "RW",
 }
 
-class RateLimitedApiClient:
-    """Client that enforces strict rate limits (max 10 requests per minute)."""
-    
-    def __init__(self, api_token: str, base_url: str):
-        self.api_token = api_token
-        self.base_url = base_url
-        self.last_request_time = 0.0
-        self.requests_count = 0
-
-    async def get(self, endpoint: str) -> Optional[Dict[str, Any]]:
-        if not self.api_token or self.api_token == "your_token_here":
-            logger.warning("[SyncService] No valid API token configured. Skipping API call.")
-            return None
-
-        # Enforce rate limit delay
-        now = time.time()
-        elapsed = now - self.last_request_time
-        if elapsed < settings.API_REQUEST_DELAY_SECONDS:
-            wait_time = settings.API_REQUEST_DELAY_SECONDS - elapsed
-            logger.info(f"[RateLimiter] Waiting {wait_time:.2f}s before next API call (Limit: 10 req/min)...")
-            await asyncio.sleep(wait_time)
-
-        headers = {"X-Auth-Token": self.api_token}
-        url = f"{self.base_url}{endpoint}"
-
-        try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                logger.info(f"[SyncService] Fetching API: {url}")
-                self.last_request_time = time.time()
-                self.requests_count += 1
-                response = await client.get(url, headers=headers)
-
-                if response.status_code == 429:
-                    logger.warning("[RateLimiter] HTTP 429 (Too Many Requests). Cooling down for 60s...")
-                    await asyncio.sleep(60.0)
-                    return None
-
-                response.raise_for_status()
-                return response.json()
-        except Exception as e:
-            logger.error(f"[SyncService] API Request error ({url}): {e}")
-            return None
-
-api_client = RateLimitedApiClient(settings.FOOTBALL_DATA_API_TOKEN, settings.FOOTBALL_DATA_API_URL)
-
 def parse_api_club_colors(club_colors_str: Optional[str], team_name: str) -> Dict[str, str]:
-    """Dynamically parse API clubColors field (e.g. 'Yellow / Green') into primary, secondary, and text hex colors."""
+    """Dynamically parse clubColors into primary, secondary, and text hex values."""
     if club_colors_str:
         parts = [p.strip().lower() for p in club_colors_str.replace("/", ",").split(",") if p.strip()]
         primary_hex = None
@@ -118,7 +46,6 @@ def parse_api_club_colors(club_colors_str: Optional[str], team_name: str) -> Dic
             txt = "#FFFFFF" if primary_hex not in ["#FFFFFF", "#FDE047", "#F8FAFC"] else "#0F172A"
             return {"primary": primary_hex, "secondary": sec, "text": txt}
 
-    # Deterministic fallback based on team name hash
     hash_val = sum(ord(c) for c in team_name)
     hue = (hash_val * 137) % 360
     return {
@@ -127,16 +54,16 @@ def parse_api_club_colors(club_colors_str: Optional[str], team_name: str) -> Dic
         "text": "#FFFFFF"
     }
 
-def upsert_competition_from_api(db: Session, comp_data: Dict[str, Any]) -> CompetitionModel:
-    """Insert or update competition model dynamically from API payload."""
+def upsert_competition(db: Session, comp_data: Dict[str, Any]) -> CompetitionModel:
+    """Insert or update competition model in the database."""
     code = comp_data.get("code") or "WC"
     comp_id = comp_data.get("id") or code
     name = comp_data.get("name") or "FIFA World Cup"
     comp_type = comp_data.get("type") or "CUP"
     emblem = comp_data.get("emblem") or ""
-    season = comp_data.get("currentSeason", {}).get("startDate", "2026")[:4]
+    season_str = comp_data.get("currentSeason", {}).get("startDate", "2026")[:4]
     try:
-        season_int = int(season)
+        season_int = int(season_str)
     except Exception:
         season_int = 2026
 
@@ -166,7 +93,7 @@ def upsert_competition_from_api(db: Session, comp_data: Dict[str, Any]) -> Compe
     return comp_obj
 
 def upsert_team(db: Session, team_data: Dict[str, Any]) -> TeamModel:
-    """Insert or update a team record in the database using pure API attributes."""
+    """Insert or update a team record in the database."""
     team_id = team_data.get("id")
     if not team_id:
         raise ValueError("Team data must include 'id'")
@@ -205,7 +132,6 @@ def upsert_team(db: Session, team_data: Dict[str, Any]) -> TeamModel:
 
     db.flush()
 
-    # Process squad array if present in team API payload
     squad = team_data.get("squad", [])
     if squad:
         upsert_squad_players(db, team_id, squad)
@@ -213,7 +139,7 @@ def upsert_team(db: Session, team_data: Dict[str, Any]) -> TeamModel:
     return team_obj
 
 def upsert_squad_players(db: Session, team_id: int, squad: List[Dict[str, Any]]):
-    """Upsert squad players for a team with field layout default positions."""
+    """Upsert squad players for a team."""
     for idx, member in enumerate(squad):
         player_id = f"p-{member.get('id', idx)}"
         raw_pos = member.get("position") or "CM"
@@ -259,7 +185,7 @@ def upsert_squad_players(db: Session, team_id: int, squad: List[Dict[str, Any]])
             db.add(new_player)
 
 def parse_utc_date(date_str: str) -> datetime:
-    """Safely parse ISO UTC date strings into Python datetime."""
+    """Parse UTC ISO date string into datetime."""
     try:
         clean_str = date_str.replace("Z", "+00:00")
         return datetime.fromisoformat(clean_str)
@@ -267,7 +193,7 @@ def parse_utc_date(date_str: str) -> datetime:
         return datetime.now(timezone.utc)
 
 def upsert_match(db: Session, match_data: Dict[str, Any]):
-    """Insert or update a match fixture in the database using pure API payload."""
+    """Insert or update match fixture in database."""
     match_id = match_data.get("id")
     if not match_id:
         return
@@ -320,44 +246,44 @@ def upsert_match(db: Session, match_data: Dict[str, Any]):
         db.add(new_match)
 
 async def sync_world_cup_job():
-    """Background ETL job to fetch and update World Cup competitions, teams, and matches dynamically from Football API."""
-    logger.info(f"[SyncService] Executing World Cup Data Sync Pipeline...")
+    """Background ETL Orchestrator Service using the configured Data Provider."""
+    logger.info("[SyncService] Executing World Cup Data Sync Pipeline via Provider...")
+    provider = get_football_provider()
     db: Session = SessionLocal()
+    
     try:
-        # 1. Fetch Competition Details dynamically from API
-        comp_api_data = await api_client.get("/competitions/WC")
-        if comp_api_data:
-            upsert_competition_from_api(db, comp_api_data)
+        # 1. Fetch Competition Record via Provider
+        comp_data = await provider.fetch_competition("WC")
+        if comp_data:
+            upsert_competition(db, comp_data)
             db.commit()
-            logger.info(f"[SyncService] Dynamic Competition record updated from API: {comp_api_data.get('name')}")
+            logger.info(f"[SyncService] Competition synced via Provider: {comp_data.get('name')}")
 
-        # 2. Sync Teams dynamically from API
-        teams_data = await api_client.get("/competitions/WC/teams")
-        if teams_data and "teams" in teams_data:
-            logger.info(f"[SyncService] Processing {len(teams_data['teams'])} teams dynamically from API...")
-            for t in teams_data["teams"]:
-                # If team payload has no squad array, fetch detailed team endpoint
+        # 2. Fetch Teams List via Provider
+        teams = await provider.fetch_teams("WC")
+        if teams:
+            logger.info(f"[SyncService] Processing {len(teams)} teams via Provider...")
+            for t in teams:
                 if not t.get("squad"):
-                    t_detail = await api_client.get(f"/teams/{t['id']}")
-                    if t_detail and "squad" in t_detail:
-                        t["squad"] = t_detail["squad"]
-
+                    detail = await provider.fetch_team_detail(t["id"])
+                    if detail and "squad" in detail:
+                        t["squad"] = detail["squad"]
                 upsert_team(db, t)
             db.commit()
-            logger.info(f"[SyncService] Database updated with {len(teams_data['teams'])} World Cup Teams & Squads!")
+            logger.info(f"[SyncService] Database updated with {len(teams)} Teams & Squads!")
 
-        # 3. Sync Matches & Fixtures dynamically from API
-        matches_data = await api_client.get("/competitions/WC/matches")
-        if matches_data and "matches" in matches_data:
-            logger.info(f"[SyncService] Processing {len(matches_data['matches'])} matches dynamically from API...")
-            for m in matches_data["matches"]:
+        # 3. Fetch Matches Fixtures via Provider
+        matches = await provider.fetch_matches("WC")
+        if matches:
+            logger.info(f"[SyncService] Processing {len(matches)} matches via Provider...")
+            for m in matches:
                 upsert_match(db, m)
             db.commit()
-            logger.info(f"[SyncService] Database updated with {len(matches_data['matches'])} World Cup Matches & Fixtures!")
+            logger.info(f"[SyncService] Database updated with {len(matches)} Matches!")
 
-        logger.info("[SyncService] World Cup Sync Job Finished Successfully!")
+        logger.info("[SyncService] World Cup Sync Job Finished Successfully via Provider Architecture!")
     except Exception as e:
         db.rollback()
-        logger.error(f"[SyncService] Error during World Cup sync pipeline: {e}")
+        logger.error(f"[SyncService] Error during sync pipeline: {e}")
     finally:
         db.close()
