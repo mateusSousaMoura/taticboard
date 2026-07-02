@@ -10,53 +10,48 @@ from core.logging import logger
 from models.football import CompetitionModel, TeamModel, PlayerModel, MatchModel
 from database import SessionLocal
 
-TEAM_COLORS = {
-    "Brazil": {"primary": "#FDE047", "secondary": "#16A34A", "text": "#0F172A"},
-    "Brasil": {"primary": "#FDE047", "secondary": "#16A34A", "text": "#0F172A"},
-    "Japan": {"primary": "#1E40AF", "secondary": "#FFFFFF", "text": "#FFFFFF"},
-    "Japão": {"primary": "#1E40AF", "secondary": "#FFFFFF", "text": "#FFFFFF"},
-    "Argentina": {"primary": "#38BDF8", "secondary": "#FFFFFF", "text": "#0F172A"},
-    "France": {"primary": "#1E3A8A", "secondary": "#EF4444", "text": "#FFFFFF"},
-    "França": {"primary": "#1E3A8A", "secondary": "#EF4444", "text": "#FFFFFF"},
-    "Spain": {"primary": "#DC2626", "secondary": "#FACC15", "text": "#FFFFFF"},
-    "Espanha": {"primary": "#DC2626", "secondary": "#FACC15", "text": "#FFFFFF"},
-    "Germany": {"primary": "#F8FAFC", "secondary": "#0F172A", "text": "#0F172A"},
-    "Alemanha": {"primary": "#F8FAFC", "secondary": "#0F172A", "text": "#0F172A"},
-    "England": {"primary": "#FFFFFF", "secondary": "#DC2626", "text": "#0F172A"},
-    "Inglaterra": {"primary": "#FFFFFF", "secondary": "#DC2626", "text": "#0F172A"},
-    "Portugal": {"primary": "#991B1B", "secondary": "#16A34A", "text": "#FFFFFF"},
-    "Italy": {"primary": "#2563EB", "secondary": "#FFFFFF", "text": "#FFFFFF"},
-    "Itália": {"primary": "#2563EB", "secondary": "#FFFFFF", "text": "#FFFFFF"},
-    "Netherlands": {"primary": "#F97316", "secondary": "#FFFFFF", "text": "#FFFFFF"},
-    "Holanda": {"primary": "#F97316", "secondary": "#FFFFFF", "text": "#FFFFFF"},
-    "Uruguay": {"primary": "#0284C7", "secondary": "#FFFFFF", "text": "#FFFFFF"},
-    "Uruguai": {"primary": "#0284C7", "secondary": "#FFFFFF", "text": "#FFFFFF"},
-    "Croatia": {"primary": "#EF4444", "secondary": "#FFFFFF", "text": "#FFFFFF"},
-    "Croácia": {"primary": "#EF4444", "secondary": "#FFFFFF", "text": "#FFFFFF"},
-    "Belgium": {"primary": "#B91C1C", "secondary": "#FACC15", "text": "#FFFFFF"},
-    "Bélgica": {"primary": "#B91C1C", "secondary": "#FACC15", "text": "#FFFFFF"},
-    "Mexico": {"primary": "#15803D", "secondary": "#DC2626", "text": "#FFFFFF"},
-    "México": {"primary": "#15803D", "secondary": "#DC2626", "text": "#FFFFFF"},
-    "USA": {"primary": "#0284C7", "secondary": "#DC2626", "text": "#FFFFFF"},
-    "Estados Unidos": {"primary": "#0284C7", "secondary": "#DC2626", "text": "#FFFFFF"},
+# Color mapping helper for parsing API clubColors strings (e.g., "Yellow / Green / Blue")
+COLOR_NAME_MAP = {
+    "yellow": "#FDE047",
+    "amarelo": "#FDE047",
+    "green": "#16A34A",
+    "verde": "#16A34A",
+    "blue": "#2563EB",
+    "azul": "#2563EB",
+    "navy": "#1E3A8A",
+    "red": "#DC2626",
+    "vermelho": "#DC2626",
+    "white": "#FFFFFF",
+    "branco": "#FFFFFF",
+    "black": "#0F172A",
+    "preto": "#0F172A",
+    "orange": "#F97316",
+    "laranja": "#F97316",
+    "sky blue": "#38BDF8",
+    "celeste": "#38BDF8",
+    "maroon": "#881337",
+    "claret": "#701A75",
+    "gold": "#EAB308",
+    "dourado": "#EAB308",
+    "purple": "#9333EA",
 }
 
 POSITION_MAPPING = {
-  "Goalkeeper": "GK",
-  "Defence": "CB",
-  "Defender": "CB",
-  "Central Back": "CB",
-  "Left-Back": "LB",
-  "Right-Back": "RB",
-  "Midfield": "CM",
-  "Midfielder": "CM",
-  "Defensive Midfield": "CDM",
-  "Attacking Midfield": "CAM",
-  "Offence": "ST",
-  "Forward": "ST",
-  "Winger": "RW",
-  "Left Winger": "LW",
-  "Right Winger": "RW",
+    "Goalkeeper": "GK",
+    "Defence": "CB",
+    "Defender": "CB",
+    "Central Back": "CB",
+    "Left-Back": "LB",
+    "Right-Back": "RB",
+    "Midfield": "CM",
+    "Midfielder": "CM",
+    "Defensive Midfield": "CDM",
+    "Attacking Midfield": "CAM",
+    "Offence": "ST",
+    "Forward": "ST",
+    "Winger": "RW",
+    "Left Winger": "LW",
+    "Right Winger": "RW",
 }
 
 class RateLimitedApiClient:
@@ -104,12 +99,26 @@ class RateLimitedApiClient:
 
 api_client = RateLimitedApiClient(settings.FOOTBALL_DATA_API_TOKEN, settings.FOOTBALL_DATA_API_URL)
 
-def get_team_kit_colors(team_name: str) -> Dict[str, str]:
-    for key, val in TEAM_COLORS.items():
-        if key.lower() in team_name.lower():
-            return val
-    
-    # Generate deterministic color pair based on team name hash
+def parse_api_club_colors(club_colors_str: Optional[str], team_name: str) -> Dict[str, str]:
+    """Dynamically parse API clubColors field (e.g. 'Yellow / Green') into primary, secondary, and text hex colors."""
+    if club_colors_str:
+        parts = [p.strip().lower() for p in club_colors_str.replace("/", ",").split(",") if p.strip()]
+        primary_hex = None
+        secondary_hex = None
+
+        for p in parts:
+            if p in COLOR_NAME_MAP:
+                if not primary_hex:
+                    primary_hex = COLOR_NAME_MAP[p]
+                elif not secondary_hex and COLOR_NAME_MAP[p] != primary_hex:
+                    secondary_hex = COLOR_NAME_MAP[p]
+
+        if primary_hex:
+            sec = secondary_hex or ("#FFFFFF" if primary_hex != "#FFFFFF" else "#0F172A")
+            txt = "#FFFFFF" if primary_hex not in ["#FFFFFF", "#FDE047", "#F8FAFC"] else "#0F172A"
+            return {"primary": primary_hex, "secondary": sec, "text": txt}
+
+    # Deterministic fallback based on team name hash
     hash_val = sum(ord(c) for c in team_name)
     hue = (hash_val * 137) % 360
     return {
@@ -118,8 +127,46 @@ def get_team_kit_colors(team_name: str) -> Dict[str, str]:
         "text": "#FFFFFF"
     }
 
+def upsert_competition_from_api(db: Session, comp_data: Dict[str, Any]) -> CompetitionModel:
+    """Insert or update competition model dynamically from API payload."""
+    code = comp_data.get("code") or "WC"
+    comp_id = comp_data.get("id") or code
+    name = comp_data.get("name") or "FIFA World Cup"
+    comp_type = comp_data.get("type") or "CUP"
+    emblem = comp_data.get("emblem") or ""
+    season = comp_data.get("currentSeason", {}).get("startDate", "2026")[:4]
+    try:
+        season_int = int(season)
+    except Exception:
+        season_int = 2026
+
+    country = comp_data.get("area", {}).get("name") or "Internacional"
+
+    existing = db.query(CompetitionModel).filter(CompetitionModel.code == code).first()
+    if existing:
+        existing.name = name
+        existing.type = comp_type
+        if emblem: existing.emblem = emblem
+        existing.season = season_int
+        existing.country = country
+        comp_obj = existing
+    else:
+        comp_obj = CompetitionModel(
+            id=str(comp_id),
+            code=code,
+            name=name,
+            type=comp_type,
+            emblem=emblem,
+            season=season_int,
+            country=country
+        )
+        db.add(comp_obj)
+
+    db.flush()
+    return comp_obj
+
 def upsert_team(db: Session, team_data: Dict[str, Any]) -> TeamModel:
-    """Insert or update a team record in the database."""
+    """Insert or update a team record in the database using pure API attributes."""
     team_id = team_data.get("id")
     if not team_id:
         raise ValueError("Team data must include 'id'")
@@ -129,7 +176,7 @@ def upsert_team(db: Session, team_data: Dict[str, Any]) -> TeamModel:
     code = team_data.get("tla") or short_name[:3].upper()
     crest = team_data.get("crest") or ""
 
-    colors = get_team_kit_colors(name)
+    colors = parse_api_club_colors(team_data.get("clubColors"), name)
 
     existing_team = db.query(TeamModel).filter(TeamModel.id == team_id).first()
     if existing_team:
@@ -158,7 +205,7 @@ def upsert_team(db: Session, team_data: Dict[str, Any]) -> TeamModel:
 
     db.flush()
 
-    # Process squad array if present
+    # Process squad array if present in team API payload
     squad = team_data.get("squad", [])
     if squad:
         upsert_squad_players(db, team_id, squad)
@@ -220,7 +267,7 @@ def parse_utc_date(date_str: str) -> datetime:
         return datetime.now(timezone.utc)
 
 def upsert_match(db: Session, match_data: Dict[str, Any]):
-    """Insert or update a match fixture in the database."""
+    """Insert or update a match fixture in the database using pure API payload."""
     match_id = match_data.get("id")
     if not match_id:
         return
@@ -246,9 +293,11 @@ def upsert_match(db: Session, match_data: Dict[str, Any]):
     home_score = score.get("home")
     away_score = score.get("away")
 
+    comp_code = match_data.get("competition", {}).get("code") or "WC"
+
     existing_match = db.query(MatchModel).filter(MatchModel.id == match_id).first()
     if existing_match:
-        existing_match.competition_code = "WC"
+        existing_match.competition_code = comp_code
         existing_match.stage = stage_name
         existing_match.status = status
         existing_match.utc_date = utc_date
@@ -259,7 +308,7 @@ def upsert_match(db: Session, match_data: Dict[str, Any]):
     else:
         new_match = MatchModel(
             id=match_id,
-            competition_code="WC",
+            competition_code=comp_code,
             stage=stage_name,
             status=status,
             utc_date=utc_date,
@@ -271,38 +320,36 @@ def upsert_match(db: Session, match_data: Dict[str, Any]):
         db.add(new_match)
 
 async def sync_world_cup_job():
-    """Background ETL job to fetch and update World Cup competitions, teams, and matches in PostgreSQL."""
+    """Background ETL job to fetch and update World Cup competitions, teams, and matches dynamically from Football API."""
     logger.info(f"[SyncService] Executing World Cup Data Sync Pipeline...")
     db: Session = SessionLocal()
     try:
-        # 1. Ensure World Cup Competition Record in DB
-        wc_comp = db.query(CompetitionModel).filter(CompetitionModel.code == "WC").first()
-        if not wc_comp:
-            wc_comp = CompetitionModel(
-                id="WC",
-                code="WC",
-                name="FIFA World Cup 2026",
-                type="WORLD_CUP",
-                emblem="https://crests.football-data.org/764.svg",
-                season=2026,
-                country="Internacional"
-            )
-            db.add(wc_comp)
+        # 1. Fetch Competition Details dynamically from API
+        comp_api_data = await api_client.get("/competitions/WC")
+        if comp_api_data:
+            upsert_competition_from_api(db, comp_api_data)
             db.commit()
+            logger.info(f"[SyncService] Dynamic Competition record updated from API: {comp_api_data.get('name')}")
 
-        # 2. Sync Teams from Football API
+        # 2. Sync Teams dynamically from API
         teams_data = await api_client.get("/competitions/WC/teams")
         if teams_data and "teams" in teams_data:
-            logger.info(f"[SyncService] Processing {len(teams_data['teams'])} teams from Football API...")
+            logger.info(f"[SyncService] Processing {len(teams_data['teams'])} teams dynamically from API...")
             for t in teams_data["teams"]:
+                # If team payload has no squad array, fetch detailed team endpoint
+                if not t.get("squad"):
+                    t_detail = await api_client.get(f"/teams/{t['id']}")
+                    if t_detail and "squad" in t_detail:
+                        t["squad"] = t_detail["squad"]
+
                 upsert_team(db, t)
             db.commit()
             logger.info(f"[SyncService] Database updated with {len(teams_data['teams'])} World Cup Teams & Squads!")
 
-        # 3. Sync Matches & Fixtures from Football API
+        # 3. Sync Matches & Fixtures dynamically from API
         matches_data = await api_client.get("/competitions/WC/matches")
         if matches_data and "matches" in matches_data:
-            logger.info(f"[SyncService] Processing {len(matches_data['matches'])} matches from Football API...")
+            logger.info(f"[SyncService] Processing {len(matches_data['matches'])} matches dynamically from API...")
             for m in matches_data["matches"]:
                 upsert_match(db, m)
             db.commit()
