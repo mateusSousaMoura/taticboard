@@ -25,16 +25,19 @@ export function App() {
   const [lines, setLines] = useState<TacticalLine[]>([]);
   const [arrows, setArrows] = useState<ArrowAnnotation[]>([]);
 
-  // Display settings
+  // Requirement 1: Default display viewMode set to 'number'
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>({
-    viewMode: 'photo',
+    viewMode: 'number',
     showNames: true,
   });
 
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [subModalPlayer, setSubModalPlayer] = useState<Player | null>(null);
 
-  // Helper to format initial starting XI coordinates (Team A Attacking on Left, Team B Defending on Right)
+  // Requirement 2: Interactive Pulsing Substitution state
+  const [pendingSubPlayer, setPendingSubPlayer] = useState<Player | null>(null);
+
+  // Format initial starting XI coordinates
   const formatInitialMatchPostures = (home: Team, away: Team) => {
     const layoutA = FORMATION_LAYOUTS[home.formation] || FORMATION_LAYOUTS['4-3-3'];
     const positionsA = layoutA.attack;
@@ -52,13 +55,12 @@ export function App() {
       return { ...p, position: pos.position as any, x: 100 - pos.x, y: pos.y, teamId: away.id };
     });
 
-    // Ensure contrasting colors if both teams share identical primary color
     let primaryB = away.primaryColor;
     let secondaryB = away.secondaryColor;
     let textB = away.textColor;
 
     if (home.primaryColor.toUpperCase() === away.primaryColor.toUpperCase()) {
-      primaryB = '#2563EB'; // Switch to Blue for contrast
+      primaryB = '#2563EB';
       secondaryB = '#FFFFFF';
       textB = '#FFFFFF';
     }
@@ -79,16 +81,31 @@ export function App() {
     setPhaseState('teamA_attack');
     setLines([]);
     setArrows([]);
+    setPendingSubPlayer(null);
   };
 
   useEffect(() => {
     formatInitialMatchPostures(initialBrazilTeam, initialJapanTeam);
   }, []);
 
-  // Handle Match Selection from Dashboard
   const handleSelectMatch = (home: Team, away: Team) => {
     formatInitialMatchPostures(home, away);
     navigate('/pitch');
+  };
+
+  // Requirement 3: Front-end player name editing during match simulation
+  const handleRenamePlayer = (playerId: string, newName: string) => {
+    const renameInTeam = (t: Team): Team => ({
+      ...t,
+      starting: t.starting.map((p) => (p.id === playerId ? { ...p, name: newName } : p)),
+      bench: t.bench.map((p) => (p.id === playerId ? { ...p, name: newName } : p))
+    });
+
+    if (teamA.starting.some((p) => p.id === playerId) || teamA.bench.some((p) => p.id === playerId)) {
+      setTeamA(renameInTeam(teamA));
+    } else if (teamB.starting.some((p) => p.id === playerId) || teamB.bench.some((p) => p.id === playerId)) {
+      setTeamB(renameInTeam(teamB));
+    }
   };
 
   // Update uniform colors dynamically
@@ -118,7 +135,6 @@ export function App() {
   const handleSelectPhase = (newPhase: PhaseState) => {
     setPhaseState(newPhase);
 
-    // Reposition Team A
     const layoutA = FORMATION_LAYOUTS[teamA.formation] || FORMATION_LAYOUTS['4-3-3'];
     const positionsA = newPhase === 'teamA_attack' ? layoutA.attack : layoutA.defense;
 
@@ -127,7 +143,6 @@ export function App() {
       return { ...p, position: pos.position as any, x: pos.x, y: pos.y };
     });
 
-    // Reposition Team B
     const layoutB = FORMATION_LAYOUTS[teamB.formation] || FORMATION_LAYOUTS['3-4-2-1'] || FORMATION_LAYOUTS['4-3-3'];
     const positionsB = newPhase === 'teamB_attack' ? layoutB.attack : layoutB.defense;
 
@@ -140,7 +155,7 @@ export function App() {
     setTeamB({ ...teamB, starting: updatedStartingB });
   };
 
-  // Execute player substitution
+  // Requirement 2: Interactive Substitution Execution (Swap bench player with clicked field player)
   const handleConfirmSubstitution = (subOutPlayer: Player, subInPlayer: Player) => {
     const isTeamA = subOutPlayer.teamId === teamA.id;
     const targetTeam = isTeamA ? teamA : teamB;
@@ -165,6 +180,7 @@ export function App() {
     });
 
     setSubModalPlayer(null);
+    setPendingSubPlayer(null);
   };
 
   // Apply formation preset taking into account current phase
@@ -210,6 +226,7 @@ export function App() {
     handleSelectPhase('teamA_attack');
     setLines([]);
     setArrows([]);
+    setPendingSubPlayer(null);
   };
 
   const handleClearDrawings = () => {
@@ -266,10 +283,13 @@ export function App() {
                   setArrows={setArrows}
                   drawingColor={drawingColor}
                   lineStyle={lineStyle}
+                  pendingSubPlayer={pendingSubPlayer}
+                  onConfirmSub={handleConfirmSubstitution}
                   onUpdatePlayerPosition={handleUpdatePlayerPosition}
                   onSelectPlayer={setSelectedPlayer}
                   selectedPlayer={selectedPlayer}
                   onOpenSubModal={setSubModalPlayer}
+                  onRenamePlayer={handleRenamePlayer}
                 />
               </div>
 
@@ -279,14 +299,18 @@ export function App() {
                   teamA={teamA}
                   teamB={teamB}
                   phaseState={phaseState}
+                  pendingSubPlayer={pendingSubPlayer}
+                  onStartSubstitution={(p) => setPendingSubPlayer(p)}
+                  onCancelSubstitution={() => setPendingSubPlayer(null)}
                   onOpenSubModal={setSubModalPlayer}
                   onApplyFormation={(tId, fmt) => handleApplyFormation(tId, fmt)}
                   onUpdateTeamColors={handleUpdateTeamColors}
+                  onRenamePlayer={handleRenamePlayer}
                 />
               </div>
             </div>
 
-            {/* Substitution Modal */}
+            {/* Substitution Modal (Secondary / Context Menu Fallback) */}
             <SubstitutionModal
               targetPlayer={subModalPlayer}
               teamA={teamA}

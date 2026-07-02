@@ -13,10 +13,13 @@ interface TacticalPitchProps {
   setArrows: React.Dispatch<React.SetStateAction<ArrowAnnotation[]>>;
   drawingColor: string;
   lineStyle: 'solid' | 'dashed';
+  pendingSubPlayer: Player | null;
+  onConfirmSub: (subOutPlayer: Player, subInPlayer: Player) => void;
   onUpdatePlayerPosition: (playerId: string, x: number, y: number) => void;
   onSelectPlayer: (player: Player | null) => void;
   selectedPlayer: Player | null;
   onOpenSubModal: (player: Player) => void;
+  onRenamePlayer: (playerId: string, newName: string) => void;
 }
 
 export const TacticalPitch: React.FC<TacticalPitchProps> = ({
@@ -30,10 +33,13 @@ export const TacticalPitch: React.FC<TacticalPitchProps> = ({
   setArrows,
   drawingColor,
   lineStyle,
+  pendingSubPlayer,
+  onConfirmSub,
   onUpdatePlayerPosition,
   onSelectPlayer,
   selectedPlayer,
-  onOpenSubModal
+  onOpenSubModal,
+  onRenamePlayer
 }) => {
   const pitchRef = useRef<HTMLDivElement>(null);
   const [draggingPlayerId, setDraggingPlayerId] = useState<string | null>(null);
@@ -59,7 +65,27 @@ export const TacticalPitch: React.FC<TacticalPitchProps> = ({
     return { x, y };
   };
 
+  const handlePlayerMarkerClick = (player: Player) => {
+    // Interactive Pulsing Substitution Trigger
+    if (pendingSubPlayer && player.teamId === pendingSubPlayer.teamId && player.isStarting) {
+      onConfirmSub(player, pendingSubPlayer);
+      return;
+    }
+
+    if (toolMode === 'highlight') {
+      handleHighlightPlayerClick(player.id);
+    } else {
+      onSelectPlayer(player);
+    }
+  };
+
   const handleMouseDown = (e: React.MouseEvent, player: Player) => {
+    if (pendingSubPlayer && player.teamId === pendingSubPlayer.teamId && player.isStarting) {
+      e.stopPropagation();
+      onConfirmSub(player, pendingSubPlayer);
+      return;
+    }
+
     if (toolMode === 'select') {
       e.stopPropagation();
       setDraggingPlayerId(player.id);
@@ -69,13 +95,18 @@ export const TacticalPitch: React.FC<TacticalPitchProps> = ({
       handleHighlightPlayerClick(player.id);
     } else if (toolMode === 'arrow') {
       e.stopPropagation();
-      // Start arrow from player center to any location on the field
       setArrowDrawingStart({ x: player.x, y: player.y });
       setArrowDrawingCurrent({ x: player.x, y: player.y });
     }
   };
 
   const handleTouchStart = (e: React.TouchEvent, player: Player) => {
+    if (pendingSubPlayer && player.teamId === pendingSubPlayer.teamId && player.isStarting) {
+      e.stopPropagation();
+      onConfirmSub(player, pendingSubPlayer);
+      return;
+    }
+
     if (e.touches.length === 1 && toolMode === 'select') {
       e.stopPropagation();
       setDraggingPlayerId(player.id);
@@ -106,7 +137,6 @@ export const TacticalPitch: React.FC<TacticalPitchProps> = ({
       setDraggingPlayerId(null);
     }
 
-    // Requirement 3: Arrow runs to any location on field
     if (arrowDrawingStart && arrowDrawingCurrent) {
       const dist = Math.hypot(
         arrowDrawingCurrent.x - arrowDrawingStart.x,
@@ -179,7 +209,7 @@ export const TacticalPitch: React.FC<TacticalPitchProps> = ({
       onMouseUp={handleMouseUp}
       onTouchEnd={() => setDraggingPlayerId(null)}
     >
-      {/* ================= PITCH LINES & MARKINGS (BRIGHT WHITE) ================= */}
+      {/* ================= PITCH LINES & MARKINGS ================= */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 68" preserveAspectRatio="none">
         {/* Field Boundary */}
         <rect x="2" y="2" width="96" height="64" fill="none" stroke="#ffffff" strokeWidth="0.6" />
@@ -246,7 +276,7 @@ export const TacticalPitch: React.FC<TacticalPitchProps> = ({
           return null;
         })}
 
-        {/* Requirement 3: Render Saved Run Arrows pointing to any field coordinate */}
+        {/* Render Saved Run Arrows */}
         {arrows.map((arrow) => (
           <g key={arrow.id} className="cursor-pointer" onClick={() => toolMode === 'eraser' && setArrows(arrows.filter(a => a.id !== arrow.id))}>
             <line
@@ -275,63 +305,50 @@ export const TacticalPitch: React.FC<TacticalPitchProps> = ({
             opacity="0.9"
           />
         )}
-
-        {/* Requirement 4: Clean highlight ring on selected player without spinning ball */}
-        {highlightSelectedPlayers.length === 1 && (
-          (() => {
-            const hp = allPlayers.find((p) => p.id === highlightSelectedPlayers[0]);
-            if (!hp) return null;
-            return (
-              <circle
-                cx={`${hp.x}%`}
-                cy={`${hp.y}%`}
-                r="2.5%"
-                fill="none"
-                stroke="#facc15"
-                strokeWidth="2.5"
-                opacity="0.9"
-              />
-            );
-          })()
-        )}
       </svg>
 
       {/* ================= PLAYERS MARKERS ================= */}
-      {teamA.starting.map((player) => (
-        <PlayerMarker
-          key={player.id}
-          player={player}
-          team={teamA}
-          displaySettings={displaySettings}
-          isSelected={selectedPlayer?.id === player.id}
-          isDragging={draggingPlayerId === player.id}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
-          onClick={(_, p) => {
-            if (toolMode === 'highlight') handleHighlightPlayerClick(p.id);
-            else onSelectPlayer(p);
-          }}
-          onContextMenu={handlePlayerContextMenu}
-        />
-      ))}
+      {teamA.starting.map((player) => {
+        const isPulsing = pendingSubPlayer?.teamId === teamA.id;
 
-      {teamB.starting.map((player) => (
-        <PlayerMarker
-          key={player.id}
-          player={player}
-          team={teamB}
-          displaySettings={displaySettings}
-          isSelected={selectedPlayer?.id === player.id}
-          isDragging={draggingPlayerId === player.id}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
-          onClick={(_, p) => {
-            if (toolMode === 'highlight') handleHighlightPlayerClick(p.id);
-            else onSelectPlayer(p);
-          }}
-          onContextMenu={handlePlayerContextMenu}
-        />
-      ))}
+        return (
+          <PlayerMarker
+            key={player.id}
+            player={player}
+            team={teamA}
+            displaySettings={displaySettings}
+            isSelected={selectedPlayer?.id === player.id}
+            isDragging={draggingPlayerId === player.id}
+            isPulsingForSub={isPulsing}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onClick={(_, p) => handlePlayerMarkerClick(p)}
+            onContextMenu={handlePlayerContextMenu}
+            onRenamePlayer={onRenamePlayer}
+          />
+        );
+      })}
+
+      {teamB.starting.map((player) => {
+        const isPulsing = pendingSubPlayer?.teamId === teamB.id;
+
+        return (
+          <PlayerMarker
+            key={player.id}
+            player={player}
+            team={teamB}
+            displaySettings={displaySettings}
+            isSelected={selectedPlayer?.id === player.id}
+            isDragging={draggingPlayerId === player.id}
+            isPulsingForSub={isPulsing}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onClick={(_, p) => handlePlayerMarkerClick(p)}
+            onContextMenu={handlePlayerContextMenu}
+            onRenamePlayer={onRenamePlayer}
+          />
+        );
+      })}
     </div>
   );
 };

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Player, DisplaySettings, Team } from '../types/tactics';
+import { Edit2, Check } from 'lucide-react';
 
 interface PlayerMarkerProps {
   player: Player;
@@ -7,10 +8,12 @@ interface PlayerMarkerProps {
   displaySettings: DisplaySettings;
   isSelected: boolean;
   isDragging: boolean;
+  isPulsingForSub?: boolean;
   onMouseDown: (e: React.MouseEvent, player: Player) => void;
   onTouchStart: (e: React.TouchEvent, player: Player) => void;
   onClick: (e: React.MouseEvent, player: Player) => void;
   onContextMenu: (e: React.MouseEvent, player: Player) => void;
+  onRenamePlayer?: (playerId: string, newName: string) => void;
 }
 
 export const PlayerMarker: React.FC<PlayerMarkerProps> = ({
@@ -19,11 +22,24 @@ export const PlayerMarker: React.FC<PlayerMarkerProps> = ({
   displaySettings,
   isSelected,
   isDragging,
+  isPulsingForSub = false,
   onMouseDown,
   onTouchStart,
   onClick,
-  onContextMenu
+  onContextMenu,
+  onRenamePlayer
 }) => {
+  const [isEditingName, setIsEditingName] = useState<boolean>(false);
+  const [editedName, setEditedName] = useState<string>(player.name);
+
+  const handleSaveName = (e: React.FormEvent | React.FocusEvent) => {
+    e.preventDefault();
+    if (editedName.trim() && onRenamePlayer) {
+      onRenamePlayer(player.id, editedName.trim());
+    }
+    setIsEditingName(false);
+  };
+
   return (
     <div
       className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing transition-transform duration-75 select-none z-20 ${
@@ -43,7 +59,9 @@ export const PlayerMarker: React.FC<PlayerMarkerProps> = ({
         {/* Player Token Circle */}
         <div
           className={`relative rounded-full flex items-center justify-center transition-all duration-150 ${
-            isSelected
+            isPulsingForSub
+              ? 'ring-4 ring-emerald-400 ring-offset-2 ring-offset-slate-950 scale-110 animate-pulse cursor-pointer shadow-2xl'
+              : isSelected
               ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-slate-950 scale-105 shadow-xl'
               : 'shadow-md'
           }`}
@@ -66,7 +84,7 @@ export const PlayerMarker: React.FC<PlayerMarkerProps> = ({
               />
             </div>
           ) : (
-            /* Number / Icon Mode */
+            /* Number / Icon Mode (Default) */
             <span 
               className="font-black text-base leading-none"
               style={{ color: team.textColor }}
@@ -83,11 +101,37 @@ export const PlayerMarker: React.FC<PlayerMarkerProps> = ({
           </div>
         </div>
 
-        {/* Name Label */}
+        {/* Name Label with Double-Click / Inline Edit */}
         {displaySettings.showNames && (
-          <span className="mt-1 bg-slate-950/90 text-white font-medium text-[10px] px-2 py-0.5 rounded-full border border-white/10 shadow-sm whitespace-nowrap max-w-[100px] truncate">
-            {player.name}
-          </span>
+          <div className="mt-1 flex items-center gap-1">
+            {isEditingName ? (
+              <form onSubmit={handleSaveName} className="flex items-center gap-1 z-30" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onBlur={handleSaveName}
+                  autoFocus
+                  className="bg-slate-950 text-white text-[10px] px-1.5 py-0.5 rounded border border-yellow-400 font-bold w-24 outline-none text-center"
+                />
+                <button type="submit" className="text-emerald-400 hover:text-white">
+                  <Check className="w-3 h-3" />
+                </button>
+              </form>
+            ) : (
+              <span 
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditingName(true);
+                }}
+                className="bg-slate-950/90 text-white font-medium text-[10px] px-2 py-0.5 rounded-full border border-white/10 shadow-sm whitespace-nowrap max-w-[110px] truncate flex items-center gap-1 cursor-pointer group-hover:border-yellow-400/50 transition-colors"
+                title="Clique duas vezes para editar o nome do jogador"
+              >
+                <span>{player.name}</span>
+                <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-yellow-400 transition-opacity" />
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>
