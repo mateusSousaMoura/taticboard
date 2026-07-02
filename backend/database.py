@@ -7,8 +7,8 @@ from core.logging import logger
 DATABASE_URL = settings.DATABASE_URL
 
 try:
-    # Try PostgreSQL connection
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    # Try PostgreSQL connection with pool_pre_ping and pool_recycle
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
     with engine.connect() as conn:
         logger.info(f"[Database] Connected successfully to PostgreSQL: {DATABASE_URL}")
 except Exception as e:

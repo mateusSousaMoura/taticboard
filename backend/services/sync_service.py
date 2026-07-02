@@ -246,20 +246,23 @@ def upsert_match(db: Session, match_data: Dict[str, Any]):
         db.add(new_match)
 
 async def sync_world_cup_job():
-    """Background ETL Orchestrator Service using the configured Data Provider."""
+    """Background ETL Orchestrator Service using short DB transactions per team to prevent timeouts."""
     logger.info("[SyncService] Executing World Cup Data Sync Pipeline via Provider...")
     provider = get_football_provider()
-    db: Session = SessionLocal()
     
     try:
-        # 1. Fetch Competition Record via Provider
+        # 1. Fetch & Commit Competition Record
         comp_data = await provider.fetch_competition("WC")
         if comp_data:
-            upsert_competition(db, comp_data)
-            db.commit()
-            logger.info(f"[SyncService] Competition synced via Provider: {comp_data.get('name')}")
+            db = SessionLocal()
+            try:
+                upsert_competition(db, comp_data)
+                db.commit()
+                logger.info(f"[SyncService] Competition synced via Provider: {comp_data.get('name')}")
+            finally:
+                db.close()
 
-        # 2. Fetch Teams List via Provider
+        # 2. Fetch Teams List & commit per team
         teams = await provider.fetch_teams("WC")
         if teams:
             logger.info(f"[SyncService] Processing {len(teams)} teams via Provider...")
@@ -268,22 +271,29 @@ async def sync_world_cup_job():
                     detail = await provider.fetch_team_detail(t["id"])
                     if detail and "squad" in detail:
                         t["squad"] = detail["squad"]
-                upsert_team(db, t)
-            db.commit()
+
+                db = SessionLocal()
+                try:
+                    upsert_team(db, t)
+                    db.commit()
+                finally:
+                    db.close()
+
             logger.info(f"[SyncService] Database updated with {len(teams)} Teams & Squads!")
 
         # 3. Fetch Matches Fixtures via Provider
         matches = await provider.fetch_matches("WC")
         if matches:
             logger.info(f"[SyncService] Processing {len(matches)} matches via Provider...")
-            for m in matches:
-                upsert_match(db, m)
-            db.commit()
-            logger.info(f"[SyncService] Database updated with {len(matches)} Matches!")
+            db = SessionLocal()
+            try:
+                for m in matches:
+                    upsert_match(db, m)
+                db.commit()
+                logger.info(f"[SyncService] Database updated with {len(matches)} Matches!")
+            finally:
+                db.close()
 
         logger.info("[SyncService] World Cup Sync Job Finished Successfully via Provider Architecture!")
     except Exception as e:
-        db.rollback()
         logger.error(f"[SyncService] Error during sync pipeline: {e}")
-    finally:
-        db.close()
