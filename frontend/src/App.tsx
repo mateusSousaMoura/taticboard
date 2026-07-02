@@ -9,6 +9,8 @@ import { TeamPanel } from './components/TeamPanel';
 import { SubstitutionModal } from './components/SubstitutionModal';
 import { MatchSelection } from './components/MatchSelection';
 import { AdminPanel } from './components/AdminPanel';
+import { EditTeamPage } from './components/admin/EditTeamPage';
+import { EditPlayerPage } from './components/admin/EditPlayerPage';
 
 interface HistorySnapshot {
   teamA: Team;
@@ -311,8 +313,11 @@ export function App() {
       <Route path="/" element={<MatchSelection onSelectMatch={handleSelectMatch} />} />
       <Route path="/matches" element={<MatchSelection onSelectMatch={handleSelectMatch} />} />
 
-      {/* Route 2: Authenticated Admin Panel */}
+      {/* Route 2: Authenticated Admin Panel & Dedicated Edit Pages */}
       <Route path="/admin" element={<AdminPanel />} />
+      <Route path="/admin/teams/edit/:teamId" element={<EditTeamPage />} />
+      <Route path="/admin/players/edit/:playerId" element={<EditPlayerPage />} />
+      <Route path="/admin/players/new" element={<EditPlayerPage />} />
 
       {/* Route 3: Tactical Board View */}
       <Route

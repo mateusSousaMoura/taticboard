@@ -87,14 +87,16 @@ def update_competition(code: str, payload: CompetitionUpdateSchema, db: Session 
 
 @router.delete("/competitions/{code}", dependencies=[Depends(verify_admin_credentials)])
 def delete_competition(code: str, db: Session = Depends(get_db)):
-    """DELETE /api/admin/competitions/{code} - Delete a competition."""
+    """DELETE /api/admin/competitions/{code} - Delete a competition and its matches."""
     comp = db.query(CompetitionModel).filter(CompetitionModel.code == code.upper()).first()
     if not comp:
         raise HTTPException(status_code=404, detail="Competition not found")
 
+    # Clean up associated matches
+    db.query(MatchModel).filter(MatchModel.competition_code == comp.code).delete()
     db.delete(comp)
     db.commit()
-    logger.info(f"[AdminCRUD] Competition '{code}' deleted.")
+    logger.info(f"[AdminCRUD] Competition '{code}' and associated matches deleted.")
     return {"message": f"Competition '{code}' deleted successfully"}
 
 # --- TEAMS CRUD ---
@@ -102,7 +104,6 @@ def delete_competition(code: str, db: Session = Depends(get_db)):
 @router.post("/teams", response_model=TeamSchema, dependencies=[Depends(verify_admin_credentials)])
 def create_team(payload: TeamCreateSchema, db: Session = Depends(get_db)):
     """POST /api/admin/teams - Create a new team."""
-    # Generate random unique int id if not specified
     max_id = db.query(TeamModel).count() + 800
     team = TeamModel(
         id=max_id + 1,
@@ -144,14 +145,18 @@ def update_team(team_id: int, payload: TeamUpdateSchema, db: Session = Depends(g
 
 @router.delete("/teams/{team_id}", dependencies=[Depends(verify_admin_credentials)])
 def delete_team(team_id: int, db: Session = Depends(get_db)):
-    """DELETE /api/admin/teams/{team_id} - Delete a team."""
+    """DELETE /api/admin/teams/{team_id} - Delete a team and associated matches/players."""
     team = db.query(TeamModel).filter(TeamModel.id == team_id).first()
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
+    # Clean up associated matches where team is home or away
+    db.query(MatchModel).filter((MatchModel.home_team_id == team_id) | (MatchModel.away_team_id == team_id)).delete()
+    db.query(PlayerModel).filter(PlayerModel.team_id == team_id).delete()
+    
     db.delete(team)
     db.commit()
-    logger.info(f"[AdminCRUD] Team ID {team_id} deleted.")
+    logger.info(f"[AdminCRUD] Team ID {team_id} deleted successfully.")
     return {"message": f"Team {team_id} deleted successfully"}
 
 # --- PLAYERS CRUD ---

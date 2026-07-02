@@ -15,7 +15,7 @@ class CompetitionModel(Base):
     country = Column(String, nullable=True)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
-    matches = relationship("MatchModel", back_populates="competition")
+    matches = relationship("MatchModel", back_populates="competition", cascade="all, delete-orphan")
 
 class TeamModel(Base):
     __tablename__ = "teams"
@@ -40,7 +40,7 @@ class PlayerModel(Base):
     name = Column(String, nullable=False)
     shirt_number = Column(Integer, nullable=False)
     position = Column(String, nullable=False) # GK, CB, LB, RB, CDM, CM, CAM, RW, LW, ST
-    team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
+    team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
     photo_url = Column(String, nullable=True)
     is_starting = Column(Boolean, default=False)
     x = Column(Float, default=50.0)
@@ -52,13 +52,13 @@ class MatchModel(Base):
     __tablename__ = "matches"
 
     id = Column(Integer, primary_key=True, index=True)
-    competition_code = Column(String, ForeignKey("competitions.code"), nullable=False)
+    competition_code = Column(String, ForeignKey("competitions.code", ondelete="CASCADE"), nullable=False)
     stage = Column(String, nullable=False)
     status = Column(String, default="SCHEDULED") # SCHEDULED, LIVE, FINISHED
     utc_date = Column(DateTime, nullable=False)
     
-    home_team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
-    away_team_id = Column(Integer, ForeignKey("teams.id"), nullable=False)
+    home_team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
+    away_team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
     
     home_score = Column(Integer, nullable=True)
     away_score = Column(Integer, nullable=True)

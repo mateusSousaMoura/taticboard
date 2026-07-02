@@ -13,9 +13,8 @@ import {
   LogOut, 
   ArrowLeft, 
   RefreshCw, 
-  Check, 
-  X, 
-  Lock 
+  Lock,
+  X
 } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:8000/api';
@@ -47,11 +46,6 @@ export const AdminPanel: React.FC = () => {
   const [newTeamName, setNewTeamName] = useState<string>('');
   const [newTeamShort, setNewTeamShort] = useState<string>('');
   const [newTeamColor, setNewTeamColor] = useState<string>('#2563EB');
-
-  const [showMatchModal, setShowMatchModal] = useState<boolean>(false);
-  const [matchHomeId, setMatchHomeId] = useState<string>('');
-  const [matchAwayId, setMatchAwayId] = useState<string>('');
-  const [matchStage, setMatchStage] = useState<string>('FASE DE GRUPOS');
 
   // Load Data
   const loadAdminData = async () => {
@@ -112,11 +106,81 @@ export const AdminPanel: React.FC = () => {
     }, 3000);
   };
 
-  // --- CRUD ACTIONS ---
+  // --- DELETE ACTIONS (FIXED WITH BEARER TOKEN & CASCADE BACKEND) ---
 
-  // Create Competition
+  const handleDeleteCompetition = async (code: string) => {
+    if (!token) return;
+    if (!confirm(`Tem certeza que deseja excluir a competição '${code}' e seus jogos?`)) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/competitions/${code}`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (res.ok) {
+        setCompetitions((prev) => prev.filter((c) => c.code !== code));
+      } else {
+        const err = await res.json();
+        alert(`Erro ao excluir: ${err.detail || 'Falha na operação'}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteTeam = async (id: string) => {
+    if (!token) return;
+    if (!confirm(`Tem certeza que deseja excluir esta seleção, seus jogadores e jogos?`)) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/teams/${id}`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (res.ok) {
+        setTeams((prev) => prev.filter((t) => t.id !== id));
+      } else {
+        const err = await res.json();
+        alert(`Erro ao excluir: ${err.detail || 'Falha na operação'}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteMatch = async (id: string) => {
+    if (!token) return;
+    if (!confirm(`Tem certeza que deseja excluir esta partida?`)) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/matches/${id}`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (res.ok) {
+        setFixtures((prev) => prev.filter((m) => m.id !== id));
+      } else {
+        const err = await res.json();
+        alert(`Erro ao excluir: ${err.detail || 'Falha na operação'}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // --- CREATE ACTIONS ---
+
   const handleCreateCompetition = async () => {
-    if (!newCompCode || !newCompName) return;
+    if (!newCompCode || !newCompName || !token) return;
     try {
       const res = await fetch(`${API_BASE_URL}/admin/competitions`, {
         method: 'POST',
@@ -143,23 +207,8 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  // Delete Competition
-  const handleDeleteCompetition = async (code: str) => {
-    if (!confirm(`Tem certeza que deseja excluir a competição '${code}'?`)) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/admin/competitions/${code}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) await loadAdminData();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  // Create Team
   const handleCreateTeam = async () => {
-    if (!newTeamName) return;
+    if (!newTeamName || !token) return;
     try {
       const res = await fetch(`${API_BASE_URL}/admin/teams`, {
         method: 'POST',
@@ -169,8 +218,8 @@ export const AdminPanel: React.FC = () => {
         },
         body: JSON.stringify({
           name: newTeamName,
-          short_name: newTeamShort || newTeamName.slice(0, 3).upper(),
-          code: newTeamShort || newTeamName.slice(0, 3).upper(),
+          short_name: newTeamShort || newTeamName.slice(0, 3).toUpperCase(),
+          code: newTeamShort || newTeamName.slice(0, 3).toUpperCase(),
           primary_color: newTeamColor
         })
       });
@@ -180,34 +229,6 @@ export const AdminPanel: React.FC = () => {
         setNewTeamShort('');
         await loadAdminData();
       }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  // Delete Team
-  const handleDeleteTeam = async (id: str) => {
-    if (!confirm(`Tem certeza que deseja excluir esta seleção?`)) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/admin/teams/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) await loadAdminData();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  // Delete Match
-  const handleDeleteMatch = async (id: str) => {
-    if (!confirm(`Tem certeza que deseja excluir esta partida?`)) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/admin/matches/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) await loadAdminData();
     } catch (e) {
       console.error(e);
     }
@@ -396,7 +417,7 @@ export const AdminPanel: React.FC = () => {
                       <td className="p-2.5 font-bold text-white">{comp.name}</td>
                       <td className="p-2.5">{comp.type}</td>
                       <td className="p-2.5">{comp.season}</td>
-                      <td className="p-2.5">
+                      <td className="p-2.5 flex items-center gap-1">
                         <button
                           onClick={() => handleDeleteCompetition(comp.code)}
                           className="btn btn-xs btn-outline-danger p-1 text-red-400"
@@ -457,7 +478,15 @@ export const AdminPanel: React.FC = () => {
                       <td className="p-2.5 font-mono text-[11px]">
                         {team.starting?.length || 0} Titulares / {team.bench?.length || 0} Reservas
                       </td>
-                      <td className="p-2.5">
+                      <td className="p-2.5 flex items-center gap-1">
+                        <button
+                          onClick={() => navigate(`/admin/teams/edit/${team.id}`)}
+                          className="btn btn-xs btn-outline-info p-1 text-blue-400"
+                          title="Página de Edição de Seleção"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+
                         <button
                           onClick={() => handleDeleteTeam(team.id)}
                           className="btn btn-xs btn-outline-danger p-1 text-red-400"
@@ -505,7 +534,7 @@ export const AdminPanel: React.FC = () => {
                       <td className="p-2.5">
                         <span className="badge bg-secondary font-mono text-[9px]">{m.status}</span>
                       </td>
-                      <td className="p-2.5">
+                      <td className="p-2.5 flex items-center gap-1">
                         <button
                           onClick={() => handleDeleteMatch(m.id)}
                           className="btn btn-xs btn-outline-danger p-1 text-red-400"
