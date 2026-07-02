@@ -5,10 +5,11 @@ const API_BASE_URL = 'http://localhost:8000/api';
 
 export async function fetchCompetitions(): Promise<Competition[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/competitions`, { signal: AbortSignal.timeout(3000) });
+    const response = await fetch(`${API_BASE_URL}/competitions`, { signal: AbortSignal.timeout(1500) });
     if (!response.ok) throw new Error('Failed to fetch competitions');
     const data = await response.json();
-    return data;
+    if (Array.isArray(data) && data.length > 0) return data;
+    return MOCK_COMPETITIONS;
   } catch (error) {
     console.warn('[Frontend API] Backend offline or unreachable. Using cached competitions fallback.', error);
     return MOCK_COMPETITIONS;
@@ -17,7 +18,7 @@ export async function fetchCompetitions(): Promise<Competition[]> {
 
 export async function fetchMatchesByCompetition(code: string): Promise<MatchFixture[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/competitions/${code}/matches`, { signal: AbortSignal.timeout(3000) });
+    const response = await fetch(`${API_BASE_URL}/competitions/${code}/matches`, { signal: AbortSignal.timeout(1500) });
     if (!response.ok) throw new Error('Failed to fetch matches');
     const data = await response.json();
     if (Array.isArray(data) && data.length > 0) return data;
@@ -30,7 +31,7 @@ export async function fetchMatchesByCompetition(code: string): Promise<MatchFixt
 
 export async function fetchTeams(): Promise<Team[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/teams`, { signal: AbortSignal.timeout(3000) });
+    const response = await fetch(`${API_BASE_URL}/teams`, { signal: AbortSignal.timeout(1500) });
     if (!response.ok) throw new Error('Failed to fetch teams');
     const data = await response.json();
     if (Array.isArray(data) && data.length > 0) return data;
@@ -43,9 +44,9 @@ export async function fetchTeams(): Promise<Team[]> {
 
 export async function triggerSyncWorldCup(): Promise<{ message: string }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/sync/world-cup`, { method: 'POST' });
+    const response = await fetch(`${API_BASE_URL}/sync/world-cup`, { method: 'POST', signal: AbortSignal.timeout(3000) });
     return await response.json();
   } catch (error) {
-    return { message: 'Servidor backend offline. Ative o uvicorn no backend.' };
+    return { message: 'Servidor backend offline. Ligue o servidor backend ou container Docker.' };
   }
 }

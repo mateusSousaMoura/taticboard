@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Competition, MatchFixture, Team } from '../types/tactics';
+import { MOCK_COMPETITIONS, MOCK_FIXTURES, MOCK_TEAMS } from '../data/mockData';
 import { fetchCompetitions, fetchMatchesByCompetition, fetchTeams, triggerSyncWorldCup } from '../services/api';
 import { Trophy, Calendar, Sparkles, ArrowRight, Swords, Shield, RefreshCw } from 'lucide-react';
 
@@ -8,27 +9,34 @@ interface MatchSelectionProps {
 }
 
 export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch }) => {
-  const [competitions, setCompetitions] = useState<Competition[]>([]);
+  // Initialize with fallback mock data so screen NEVER renders blank
+  const [competitions, setCompetitions] = useState<Competition[]>(MOCK_COMPETITIONS);
   const [selectedCompCode, setSelectedCompCode] = useState<string>('WC');
-  const [fixtures, setFixtures] = useState<MatchFixture[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [fixtures, setFixtures] = useState<MatchFixture[]>(MOCK_FIXTURES);
+  const [teams, setTeams] = useState<Team[]>(MOCK_TEAMS);
   
-  const [customHomeTeamId, setCustomHomeTeamId] = useState<string>('');
-  const [customAwayTeamId, setCustomAwayTeamId] = useState<string>('');
+  const [customHomeTeamId, setCustomHomeTeamId] = useState<string>(MOCK_TEAMS[0]?.id || '764');
+  const [customAwayTeamId, setCustomAwayTeamId] = useState<string>(MOCK_TEAMS[1]?.id || '776');
   
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadInitialData() {
-      const compData = await fetchCompetitions();
-      setCompetitions(compData);
-      
-      const teamData = await fetchTeams();
-      setTeams(teamData);
-      if (teamData.length >= 2) {
-        setCustomHomeTeamId(teamData[0].id);
-        setCustomAwayTeamId(teamData[1].id);
+      try {
+        const compData = await fetchCompetitions();
+        if (compData && compData.length > 0) {
+          setCompetitions(compData);
+        }
+        
+        const teamData = await fetchTeams();
+        if (teamData && teamData.length >= 2) {
+          setTeams(teamData);
+          setCustomHomeTeamId(teamData[0].id);
+          setCustomAwayTeamId(teamData[1].id);
+        }
+      } catch (e) {
+        console.warn('Using fallback mock data for match selection.', e);
       }
     }
     loadInitialData();
@@ -36,17 +44,25 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
 
   useEffect(() => {
     async function loadMatches() {
-      const matchData = await fetchMatchesByCompetition(selectedCompCode);
-      setFixtures(matchData);
+      try {
+        const matchData = await fetchMatchesByCompetition(selectedCompCode);
+        if (matchData && matchData.length > 0) {
+          setFixtures(matchData);
+        } else {
+          setFixtures(MOCK_FIXTURES.filter((f) => f.competitionCode === selectedCompCode));
+        }
+      } catch (e) {
+        setFixtures(MOCK_FIXTURES.filter((f) => f.competitionCode === selectedCompCode));
+      }
     }
     loadMatches();
   }, [selectedCompCode]);
 
-  const activeCompetition = competitions.find((c) => c.code === selectedCompCode) || competitions[0];
+  const activeCompetition = competitions.find((c) => c.code === selectedCompCode) || MOCK_COMPETITIONS[0];
 
   const handleStartCustomMatch = () => {
-    const home = teams.find((t) => t.id === customHomeTeamId) || teams[0];
-    const away = teams.find((t) => t.id === customAwayTeamId) || teams[1];
+    const home = teams.find((t) => t.id === customHomeTeamId) || teams[0] || MOCK_TEAMS[0];
+    const away = teams.find((t) => t.id === customAwayTeamId) || teams[1] || MOCK_TEAMS[1];
     onSelectMatch(home, away, 'CONFRONTO PERSONALIZADO');
   };
 
@@ -161,13 +177,13 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
                       <div className="flex items-center gap-3">
                         <span 
                           className="w-10 h-10 rounded-full font-black flex items-center justify-center text-sm border-2 border-slate-900 shadow"
-                          style={{ backgroundColor: fixture.homeTeam.primaryColor, color: fixture.homeTeam.textColor }}
+                          style={{ backgroundColor: fixture.homeTeam?.primaryColor || '#FDE047', color: fixture.homeTeam?.textColor || '#000' }}
                         >
-                          {fixture.homeTeam.shortName}
+                          {fixture.homeTeam?.shortName || 'HOME'}
                         </span>
                         <div>
                           <h4 className="font-bold text-white text-base group-hover:text-blue-400 transition-colors">
-                            {fixture.homeTeam.name}
+                            {fixture.homeTeam?.name}
                           </h4>
                           <span className="text-[10px] text-slate-400 font-mono">Mandante</span>
                         </div>
@@ -179,13 +195,13 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
                       <div className="flex items-center gap-3 text-right flex-row-reverse">
                         <span 
                           className="w-10 h-10 rounded-full font-black flex items-center justify-center text-sm border-2 border-white shadow"
-                          style={{ backgroundColor: fixture.awayTeam.primaryColor, color: fixture.awayTeam.textColor }}
+                          style={{ backgroundColor: fixture.awayTeam?.primaryColor || '#2563EB', color: fixture.awayTeam?.textColor || '#FFF' }}
                         >
-                          {fixture.awayTeam.shortName}
+                          {fixture.awayTeam?.shortName || 'AWAY'}
                         </span>
                         <div>
                           <h4 className="font-bold text-white text-base group-hover:text-blue-400 transition-colors">
-                            {fixture.awayTeam.name}
+                            {fixture.awayTeam?.name}
                           </h4>
                           <span className="text-[10px] text-slate-400 font-mono">Visitante</span>
                         </div>
