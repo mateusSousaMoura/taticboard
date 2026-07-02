@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import { initialBrazilTeam, initialJapanTeam, FORMATION_LAYOUTS } from './data/mockData';
 import type { Team, Player, ToolMode, TacticalLine, ArrowAnnotation, DisplaySettings, PhaseState } from './types/tactics';
 import { Header } from './components/Header';
@@ -9,8 +10,7 @@ import { SubstitutionModal } from './components/SubstitutionModal';
 import { MatchSelection } from './components/MatchSelection';
 
 export function App() {
-  // Navigation Screen: 'matches' (Selection Dashboard) or 'pitch' (Tactical Board)
-  const [currentScreen, setCurrentScreen] = useState<'matches' | 'pitch'>('matches');
+  const navigate = useNavigate();
 
   const [teamA, setTeamA] = useState<Team>(initialBrazilTeam);
   const [teamB, setTeamB] = useState<Team>(initialJapanTeam);
@@ -25,7 +25,7 @@ export function App() {
   const [lines, setLines] = useState<TacticalLine[]>([]);
   const [arrows, setArrows] = useState<ArrowAnnotation[]>([]);
 
-  // Display settings (Photo vs Number/Icon mode)
+  // Display settings
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>({
     viewMode: 'photo',
     showNames: true,
@@ -34,15 +34,70 @@ export function App() {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [subModalPlayer, setSubModalPlayer] = useState<Player | null>(null);
 
-  // Handle Match Selection from Dashboard
-  const handleSelectMatch = (home: Team, away: Team) => {
-    // Clone starting squads so dragging/subs don't alter global templates
-    setTeamA({ ...home, starting: JSON.parse(JSON.stringify(home.starting)) });
-    setTeamB({ ...away, starting: JSON.parse(JSON.stringify(away.starting)) });
+  // Helper to format initial starting XI coordinates (Team A Attacking on Left, Team B Defending on Right)
+  const formatInitialMatchPostures = (home: Team, away: Team) => {
+    const layoutA = FORMATION_LAYOUTS[home.formation] || FORMATION_LAYOUTS['4-3-3'];
+    const positionsA = layoutA.attack;
+
+    const updatedStartingA = home.starting.map((p, idx) => {
+      const pos = positionsA[idx] || positionsA[positionsA.length - 1];
+      return { ...p, position: pos.position as any, x: pos.x, y: pos.y, teamId: home.id };
+    });
+
+    const layoutB = FORMATION_LAYOUTS[away.formation] || FORMATION_LAYOUTS['3-4-2-1'] || FORMATION_LAYOUTS['4-3-3'];
+    const positionsB = layoutB.defense;
+
+    const updatedStartingB = away.starting.map((p, idx) => {
+      const pos = positionsB[idx] || positionsB[positionsB.length - 1];
+      return { ...p, position: pos.position as any, x: 100 - pos.x, y: pos.y, teamId: away.id };
+    });
+
+    // Ensure contrasting colors if both teams share identical primary color
+    let primaryB = away.primaryColor;
+    let secondaryB = away.secondaryColor;
+    let textB = away.textColor;
+
+    if (home.primaryColor.toUpperCase() === away.primaryColor.toUpperCase()) {
+      primaryB = '#2563EB'; // Switch to Blue for contrast
+      secondaryB = '#FFFFFF';
+      textB = '#FFFFFF';
+    }
+
+    setTeamA({
+      ...home,
+      starting: updatedStartingA
+    });
+
+    setTeamB({
+      ...away,
+      primaryColor: primaryB,
+      secondaryColor: secondaryB,
+      textColor: textB,
+      starting: updatedStartingB
+    });
+
     setPhaseState('teamA_attack');
     setLines([]);
     setArrows([]);
-    setCurrentScreen('pitch');
+  };
+
+  useEffect(() => {
+    formatInitialMatchPostures(initialBrazilTeam, initialJapanTeam);
+  }, []);
+
+  // Handle Match Selection from Dashboard
+  const handleSelectMatch = (home: Team, away: Team) => {
+    formatInitialMatchPostures(home, away);
+    navigate('/pitch');
+  };
+
+  // Update uniform colors dynamically
+  const handleUpdateTeamColors = (teamId: string, primaryColor: string, secondaryColor: string, textColor: string) => {
+    if (teamId === teamA.id) {
+      setTeamA({ ...teamA, primaryColor, secondaryColor, textColor });
+    } else {
+      setTeamB({ ...teamB, primaryColor, secondaryColor, textColor });
+    }
   };
 
   // Update single player position on drag
@@ -112,7 +167,7 @@ export function App() {
     setSubModalPlayer(null);
   };
 
-  // Apply formation preset taking into account current phase (Attacking or Defending)
+  // Apply formation preset taking into account current phase
   const handleApplyFormation = (teamId: string, formationName: string) => {
     const layout = FORMATION_LAYOUTS[formationName];
     if (!layout) return;
@@ -152,10 +207,9 @@ export function App() {
   };
 
   const handleResetPositions = () => {
-    setPhaseState('teamA_attack');
+    handleSelectPhase('teamA_attack');
     setLines([]);
     setArrows([]);
-    handleSelectPhase('teamA_attack');
   };
 
   const handleClearDrawings = () => {
@@ -163,78 +217,87 @@ export function App() {
     setArrows([]);
   };
 
-  if (currentScreen === 'matches') {
-    return <MatchSelection onSelectMatch={handleSelectMatch} />;
-  }
-
   return (
-    <div className="w-screen h-screen p-2 flex flex-col justify-between overflow-hidden bg-[#0b1120]">
-      {/* Header Bar */}
-      <Header
-        teamA={teamA}
-        teamB={teamB}
-        phaseState={phaseState}
-        onSelectPhase={handleSelectPhase}
-        onClearDrawings={handleClearDrawings}
-        onResetPositions={handleResetPositions}
-        onBackToMatches={() => setCurrentScreen('matches')}
+    <Routes>
+      {/* Route 1: Match & Competition Selection Dashboard */}
+      <Route path="/" element={<MatchSelection onSelectMatch={handleSelectMatch} />} />
+      <Route path="/matches" element={<MatchSelection onSelectMatch={handleSelectMatch} />} />
+
+      {/* Route 2: Tactical Board View */}
+      <Route
+        path="/pitch"
+        element={
+          <div className="w-screen h-screen p-2 flex flex-col justify-between overflow-hidden bg-[#0b1120]">
+            {/* Header Bar */}
+            <Header
+              teamA={teamA}
+              teamB={teamB}
+              phaseState={phaseState}
+              onSelectPhase={handleSelectPhase}
+              onClearDrawings={handleClearDrawings}
+              onResetPositions={handleResetPositions}
+              onBackToMatches={() => navigate('/')}
+            />
+
+            {/* Control Bar */}
+            <ControlBar
+              toolMode={toolMode}
+              setToolMode={setToolMode}
+              displaySettings={displaySettings}
+              setDisplaySettings={setDisplaySettings}
+              drawingColor={drawingColor}
+              setDrawingColor={setDrawingColor}
+              lineStyle={lineStyle}
+              setLineStyle={setLineStyle}
+            />
+
+            {/* Full Viewport Grid Layout */}
+            <div className="flex-1 grid grid-cols-12 gap-2 overflow-hidden items-center">
+              {/* Maximized Landscape Pitch Container */}
+              <div className="col-span-9 xl:col-span-10 flex items-center justify-center w-full h-full overflow-hidden">
+                <TacticalPitch
+                  teamA={teamA}
+                  teamB={teamB}
+                  toolMode={toolMode}
+                  displaySettings={displaySettings}
+                  lines={lines}
+                  setLines={setLines}
+                  arrows={arrows}
+                  setArrows={setArrows}
+                  drawingColor={drawingColor}
+                  lineStyle={lineStyle}
+                  onUpdatePlayerPosition={handleUpdatePlayerPosition}
+                  onSelectPlayer={setSelectedPlayer}
+                  selectedPlayer={selectedPlayer}
+                  onOpenSubModal={setSubModalPlayer}
+                />
+              </div>
+
+              {/* Compact Sidebar */}
+              <div className="col-span-3 xl:col-span-2 w-full h-full overflow-hidden">
+                <TeamPanel
+                  teamA={teamA}
+                  teamB={teamB}
+                  phaseState={phaseState}
+                  onOpenSubModal={setSubModalPlayer}
+                  onApplyFormation={(tId, fmt) => handleApplyFormation(tId, fmt)}
+                  onUpdateTeamColors={handleUpdateTeamColors}
+                />
+              </div>
+            </div>
+
+            {/* Substitution Modal */}
+            <SubstitutionModal
+              targetPlayer={subModalPlayer}
+              teamA={teamA}
+              teamB={teamB}
+              onClose={() => setSubModalPlayer(null)}
+              onConfirmSub={handleConfirmSubstitution}
+            />
+          </div>
+        }
       />
-
-      {/* Control Bar */}
-      <ControlBar
-        toolMode={toolMode}
-        setToolMode={setToolMode}
-        displaySettings={displaySettings}
-        setDisplaySettings={setDisplaySettings}
-        drawingColor={drawingColor}
-        setDrawingColor={setDrawingColor}
-        lineStyle={lineStyle}
-        setLineStyle={setLineStyle}
-      />
-
-      {/* Full Viewport Grid Layout */}
-      <div className="flex-1 grid grid-cols-12 gap-2 overflow-hidden items-center">
-        {/* Maximized Landscape Pitch Container */}
-        <div className="col-span-9 xl:col-span-10 flex items-center justify-center w-full h-full overflow-hidden">
-          <TacticalPitch
-            teamA={teamA}
-            teamB={teamB}
-            toolMode={toolMode}
-            displaySettings={displaySettings}
-            lines={lines}
-            setLines={setLines}
-            arrows={arrows}
-            setArrows={setArrows}
-            drawingColor={drawingColor}
-            lineStyle={lineStyle}
-            onUpdatePlayerPosition={handleUpdatePlayerPosition}
-            onSelectPlayer={setSelectedPlayer}
-            selectedPlayer={selectedPlayer}
-            onOpenSubModal={setSubModalPlayer}
-          />
-        </div>
-
-        {/* Compact Sidebar */}
-        <div className="col-span-3 xl:col-span-2 w-full h-full overflow-hidden">
-          <TeamPanel
-            teamA={teamA}
-            teamB={teamB}
-            phaseState={phaseState}
-            onOpenSubModal={setSubModalPlayer}
-            onApplyFormation={(tId, fmt) => handleApplyFormation(tId, fmt)}
-          />
-        </div>
-      </div>
-
-      {/* Substitution Modal */}
-      <SubstitutionModal
-        targetPlayer={subModalPlayer}
-        teamA={teamA}
-        teamB={teamB}
-        onClose={() => setSubModalPlayer(null)}
-        onConfirmSub={handleConfirmSubstitution}
-      />
-    </div>
+    </Routes>
   );
 }
 
