@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Competition, Team, MatchFixture } from '../types/tactics';
 import { fetchCompetitions, fetchMatchesByCompetition, fetchTeams, triggerSyncWorldCup } from '../services/api';
+import { TheSportsDBTester } from './admin/TheSportsDBTester';
 import { 
   ShieldCheck, 
   Trophy, 
@@ -15,7 +16,8 @@ import {
   RefreshCw, 
   Lock,
   Search,
-  X
+  X,
+  Terminal
 } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:8000/api';
@@ -30,7 +32,7 @@ export const AdminPanel: React.FC = () => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Data State
-  const [activeTab, setActiveTab] = useState<'competitions' | 'teams' | 'matches'>('competitions');
+  const [activeTab, setActiveTab] = useState<'competitions' | 'teams' | 'matches' | 'tester'>('competitions');
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [fixtures, setFixtures] = useState<MatchFixture[]>([]);
@@ -398,7 +400,7 @@ export const AdminPanel: React.FC = () => {
       {/* Main Admin Dashboard */}
       <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col space-y-4 overflow-hidden">
         {/* Navigation Tabs */}
-        <div className="glass-panel p-2 flex items-center gap-2 shrink-0">
+        <div className="glass-panel p-2 flex items-center gap-2 shrink-0 flex-wrap">
           <button
             onClick={() => setActiveTab('competitions')}
             className={`btn btn-sm text-xs font-bold flex items-center gap-1.5 ${
@@ -427,6 +429,16 @@ export const AdminPanel: React.FC = () => {
           >
             <Calendar className="w-4 h-4" />
             <span>Partidas / Jogos ({filteredFixtures.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('tester')}
+            className={`btn btn-sm text-xs font-bold flex items-center gap-1.5 ${
+              activeTab === 'tester' ? 'btn-warning text-slate-950 shadow' : 'btn-outline-warning text-yellow-400'
+            }`}
+          >
+            <Terminal className="w-4 h-4" />
+            <span>🧪 Playground TheSportsDB API</span>
           </button>
         </div>
 
@@ -596,6 +608,9 @@ export const AdminPanel: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* TAB 4: THESPORTSDB TESTER PLAYGROUND */}
+        {activeTab === 'tester' && <TheSportsDBTester />}
       </div>
 
       {/* CREATE COMPETITION MODAL */}

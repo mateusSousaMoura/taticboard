@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
+import httpx
+from pydantic import BaseModel
 
 from database import get_db
 from core.security import verify_admin_credentials, ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SECRET_TOKEN
@@ -36,6 +38,41 @@ def admin_login(payload: AdminLoginRequest):
         tokenType="Bearer",
         username=payload.username
     )
+
+# --- THESPORTSDB PLAYGROUND TESTER ENDPOINT ---
+
+class TestSportsDBRequest(BaseModel):
+    endpoint: str
+    params: Dict[str, str] = {}
+    apiKey: Optional[str] = "123"
+
+@router.post("/test-thesportsdb", dependencies=[Depends(verify_admin_credentials)])
+async def test_thesportsdb_endpoint(payload: TestSportsDBRequest):
+    """POST /api/admin/test-thesportsdb - Proxy test requests to TheSportsDB API v1 and return full JSON response."""
+    api_key = payload.apiKey or "123"
+    endpoint_clean = payload.endpoint.lstrip("/")
+    url = f"https://www.thesportsdb.com/api/v1/json/{api_key}/{endpoint_clean}"
+    
+    start_time = datetime.now(timezone.utc)
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.get(url, params=payload.params)
+            latency_ms = round((datetime.now(timezone.utc) - start_time).total_seconds() * 1000, 2)
+            
+            try:
+                data = res.json()
+            except Exception:
+                data = {"raw_text": res.text}
+
+            return {
+                "status_code": res.status_code,
+                "url": str(res.url),
+                "latency_ms": latency_ms,
+                "data": data
+            }
+    except Exception as e:
+        logger.error(f"[TestTheSportsDB] Error testing URL {url}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- COMPETITIONS CRUD ---
 
