@@ -10,6 +10,37 @@ from core.logging import logger
 from models.football import CompetitionModel, TeamModel, PlayerModel, MatchModel
 from database import SessionLocal
 
+TEAM_COLORS = {
+    "Brazil": {"primary": "#FDE047", "secondary": "#16A34A", "text": "#0F172A"},
+    "Brasil": {"primary": "#FDE047", "secondary": "#16A34A", "text": "#0F172A"},
+    "Japan": {"primary": "#1E40AF", "secondary": "#FFFFFF", "text": "#FFFFFF"},
+    "Japão": {"primary": "#1E40AF", "secondary": "#FFFFFF", "text": "#FFFFFF"},
+    "Argentina": {"primary": "#38BDF8", "secondary": "#FFFFFF", "text": "#0F172A"},
+    "France": {"primary": "#1E3A8A", "secondary": "#EF4444", "text": "#FFFFFF"},
+    "França": {"primary": "#1E3A8A", "secondary": "#EF4444", "text": "#FFFFFF"},
+    "Spain": {"primary": "#DC2626", "secondary": "#FACC15", "text": "#FFFFFF"},
+    "Espanha": {"primary": "#DC2626", "secondary": "#FACC15", "text": "#FFFFFF"},
+    "Germany": {"primary": "#F8FAFC", "secondary": "#0F172A", "text": "#0F172A"},
+    "Alemanha": {"primary": "#F8FAFC", "secondary": "#0F172A", "text": "#0F172A"},
+    "England": {"primary": "#FFFFFF", "secondary": "#DC2626", "text": "#0F172A"},
+    "Inglaterra": {"primary": "#FFFFFF", "secondary": "#DC2626", "text": "#0F172A"},
+    "Portugal": {"primary": "#991B1B", "secondary": "#16A34A", "text": "#FFFFFF"},
+    "Italy": {"primary": "#2563EB", "secondary": "#FFFFFF", "text": "#FFFFFF"},
+    "Itália": {"primary": "#2563EB", "secondary": "#FFFFFF", "text": "#FFFFFF"},
+    "Netherlands": {"primary": "#F97316", "secondary": "#FFFFFF", "text": "#FFFFFF"},
+    "Holanda": {"primary": "#F97316", "secondary": "#FFFFFF", "text": "#FFFFFF"},
+    "Uruguay": {"primary": "#0284C7", "secondary": "#FFFFFF", "text": "#FFFFFF"},
+    "Uruguai": {"primary": "#0284C7", "secondary": "#FFFFFF", "text": "#FFFFFF"},
+    "Croatia": {"primary": "#EF4444", "secondary": "#FFFFFF", "text": "#FFFFFF"},
+    "Croácia": {"primary": "#EF4444", "secondary": "#FFFFFF", "text": "#FFFFFF"},
+    "Belgium": {"primary": "#B91C1C", "secondary": "#FACC15", "text": "#FFFFFF"},
+    "Bélgica": {"primary": "#B91C1C", "secondary": "#FACC15", "text": "#FFFFFF"},
+    "Mexico": {"primary": "#15803D", "secondary": "#DC2626", "text": "#FFFFFF"},
+    "México": {"primary": "#15803D", "secondary": "#DC2626", "text": "#FFFFFF"},
+    "USA": {"primary": "#0284C7", "secondary": "#DC2626", "text": "#FFFFFF"},
+    "Estados Unidos": {"primary": "#0284C7", "secondary": "#DC2626", "text": "#FFFFFF"},
+}
+
 POSITION_MAPPING = {
   "Goalkeeper": "GK",
   "Defence": "CB",
@@ -73,6 +104,20 @@ class RateLimitedApiClient:
 
 api_client = RateLimitedApiClient(settings.FOOTBALL_DATA_API_TOKEN, settings.FOOTBALL_DATA_API_URL)
 
+def get_team_kit_colors(team_name: str) -> Dict[str, str]:
+    for key, val in TEAM_COLORS.items():
+        if key.lower() in team_name.lower():
+            return val
+    
+    # Generate deterministic color pair based on team name hash
+    hash_val = sum(ord(c) for c in team_name)
+    hue = (hash_val * 137) % 360
+    return {
+        "primary": f"hsl({hue}, 70%, 45%)",
+        "secondary": "#FFFFFF",
+        "text": "#FFFFFF"
+    }
+
 def upsert_team(db: Session, team_data: Dict[str, Any]) -> TeamModel:
     """Insert or update a team record in the database."""
     team_id = team_data.get("id")
@@ -84,26 +129,29 @@ def upsert_team(db: Session, team_data: Dict[str, Any]) -> TeamModel:
     code = team_data.get("tla") or short_name[:3].upper()
     crest = team_data.get("crest") or ""
 
+    colors = get_team_kit_colors(name)
+
     existing_team = db.query(TeamModel).filter(TeamModel.id == team_id).first()
     if existing_team:
         existing_team.name = name
         existing_team.short_name = short_name
         existing_team.code = code
+        existing_team.primary_color = colors["primary"]
+        existing_team.secondary_color = colors["secondary"]
+        existing_team.text_color = colors["text"]
         if crest:
             existing_team.crest = crest
         team_obj = existing_team
     else:
-        # Assign distinct team primary colors
-        is_brazil = "Brazil" in name or "Brasil" in name
         team_obj = TeamModel(
             id=team_id,
             name=name,
             short_name=short_name,
             code=code,
             crest=crest,
-            primary_color="#FDE047" if is_brazil else "#2563EB",
-            secondary_color="#16A34A" if is_brazil else "#FFFFFF",
-            text_color="#0F172A" if is_brazil else "#FFFFFF",
+            primary_color=colors["primary"],
+            secondary_color=colors["secondary"],
+            text_color=colors["text"],
             formation="4-3-3"
         )
         db.add(team_obj)
@@ -126,22 +174,20 @@ def upsert_squad_players(db: Session, team_id: int, squad: List[Dict[str, Any]])
         shirt_num = member.get("shirtNumber") or (idx + 1)
         name = member.get("name") or f"Jogador {shirt_num}"
 
-        # Assign field coordinates for first 11 players
         is_starting = idx < 11
         x_pos = 50.0
         y_pos = 50.0
 
         if is_starting:
-            # Basic tactical layout coordinates
-            if idx == 0: # GK
+            if idx == 0:
                 x_pos, y_pos = (20.0, 50.0)
-            elif idx <= 4: # Defenders
+            elif idx <= 4:
                 x_pos = 46.0
                 y_pos = 15.0 + (idx - 1) * 23.0
-            elif idx <= 7: # Midfielders
+            elif idx <= 7:
                 x_pos = 65.0
                 y_pos = 25.0 + (idx - 5) * 25.0
-            else: # Attackers
+            else:
                 x_pos = 80.0
                 y_pos = 20.0 + (idx - 8) * 30.0
 
@@ -185,7 +231,6 @@ def upsert_match(db: Session, match_data: Dict[str, Any]):
     if not home_team_raw.get("id") or not away_team_raw.get("id"):
         return
 
-    # Ensure home and away teams are saved first
     home_team = upsert_team(db, home_team_raw)
     away_team = upsert_team(db, away_team_raw)
 
