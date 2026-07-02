@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { initialBrazilTeam, initialJapanTeam, FORMATION_LAYOUTS } from './data/mockData';
 import type { Team, Player, ToolMode, TacticalLine, ArrowAnnotation, DisplaySettings, PhaseState } from './types/tactics';
@@ -8,6 +8,14 @@ import { TacticalPitch } from './components/TacticalPitch';
 import { TeamPanel } from './components/TeamPanel';
 import { SubstitutionModal } from './components/SubstitutionModal';
 import { MatchSelection } from './components/MatchSelection';
+
+interface HistorySnapshot {
+  teamA: Team;
+  teamB: Team;
+  lines: TacticalLine[];
+  arrows: ArrowAnnotation[];
+  phaseState: PhaseState;
+}
 
 export function App() {
   const navigate = useNavigate();
@@ -25,7 +33,57 @@ export function App() {
   const [lines, setLines] = useState<TacticalLine[]>([]);
   const [arrows, setArrows] = useState<ArrowAnnotation[]>([]);
 
-  // Requirement 1: Default display viewMode set to 'number'
+  // History Stack for Ctrl+Z Undo
+  const [historyStack, setHistoryStack] = useState<HistorySnapshot[]>([]);
+
+  const saveSnapshot = useCallback(() => {
+    setHistoryStack((prev) => [
+      ...prev.slice(-49), // Keep max 50 snapshots
+      {
+        teamA: JSON.parse(JSON.stringify(teamA)),
+        teamB: JSON.parse(JSON.stringify(teamB)),
+        lines: JSON.parse(JSON.stringify(lines)),
+        arrows: JSON.parse(JSON.stringify(arrows)),
+        phaseState
+      }
+    ]);
+  }, [teamA, teamB, lines, arrows, phaseState]);
+
+  const handleUndo = useCallback(() => {
+    if (historyStack.length === 0) return;
+
+    const previousSnapshot = historyStack[historyStack.length - 1];
+    setHistoryStack((prev) => prev.slice(0, -1));
+
+    setTeamA(previousSnapshot.teamA);
+    setTeamB(previousSnapshot.teamB);
+    setLines(previousSnapshot.lines);
+    setArrows(previousSnapshot.arrows);
+    setPhaseState(previousSnapshot.phaseState);
+  }, [historyStack]);
+
+  // Global Ctrl+Z / Cmd+Z Keyboard Shortcut Listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeElem = document.activeElement;
+      if (
+        activeElem && 
+        (activeElem.tagName === 'INPUT' || activeElem.tagName === 'TEXTAREA' || (activeElem as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo]);
+
+  // Default display viewMode set to 'number'
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>({
     viewMode: 'number',
     showNames: true,
@@ -34,7 +92,7 @@ export function App() {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [subModalPlayer, setSubModalPlayer] = useState<Player | null>(null);
 
-  // Requirement 2: Interactive Pulsing Substitution state
+  // Interactive Pulsing Substitution state
   const [pendingSubPlayer, setPendingSubPlayer] = useState<Player | null>(null);
 
   // Format initial starting XI coordinates
@@ -82,6 +140,7 @@ export function App() {
     setLines([]);
     setArrows([]);
     setPendingSubPlayer(null);
+    setHistoryStack([]);
   };
 
   useEffect(() => {
@@ -93,8 +152,9 @@ export function App() {
     navigate('/pitch');
   };
 
-  // Requirement 3: Front-end player name editing during match simulation
+  // Front-end player name editing during match simulation
   const handleRenamePlayer = (playerId: string, newName: string) => {
+    saveSnapshot();
     const renameInTeam = (t: Team): Team => ({
       ...t,
       starting: t.starting.map((p) => (p.id === playerId ? { ...p, name: newName } : p)),
@@ -110,6 +170,7 @@ export function App() {
 
   // Update uniform colors dynamically
   const handleUpdateTeamColors = (teamId: string, primaryColor: string, secondaryColor: string, textColor: string) => {
+    saveSnapshot();
     if (teamId === teamA.id) {
       setTeamA({ ...teamA, primaryColor, secondaryColor, textColor });
     } else {
@@ -117,7 +178,7 @@ export function App() {
     }
   };
 
-  // Update single player position on drag
+  // Update single player position on drag (save snapshot before drag)
   const handleUpdatePlayerPosition = (playerId: string, x: number, y: number) => {
     const updateTeam = (team: Team): Team => ({
       ...team,
@@ -131,8 +192,14 @@ export function App() {
     }
   };
 
+  // Save snapshot before dragging or drawing starts
+  const handlePitchActionStart = () => {
+    saveSnapshot();
+  };
+
   // Select Attacking Team & dynamically update layout positions
   const handleSelectPhase = (newPhase: PhaseState) => {
+    saveSnapshot();
     setPhaseState(newPhase);
 
     const layoutA = FORMATION_LAYOUTS[teamA.formation] || FORMATION_LAYOUTS['4-3-3'];
@@ -155,8 +222,9 @@ export function App() {
     setTeamB({ ...teamB, starting: updatedStartingB });
   };
 
-  // Requirement 2: Interactive Substitution Execution (Swap bench player with clicked field player)
+  // Interactive Substitution Execution (Swap bench player with clicked field player)
   const handleConfirmSubstitution = (subOutPlayer: Player, subInPlayer: Player) => {
+    saveSnapshot();
     const isTeamA = subOutPlayer.teamId === teamA.id;
     const targetTeam = isTeamA ? teamA : teamB;
     const setTargetTeam = isTeamA ? setTeamA : setTeamB;
@@ -185,6 +253,7 @@ export function App() {
 
   // Apply formation preset taking into account current phase
   const handleApplyFormation = (teamId: string, formationName: string) => {
+    saveSnapshot();
     const layout = FORMATION_LAYOUTS[formationName];
     if (!layout) return;
 
@@ -223,6 +292,7 @@ export function App() {
   };
 
   const handleResetPositions = () => {
+    saveSnapshot();
     handleSelectPhase('teamA_attack');
     setLines([]);
     setArrows([]);
@@ -230,6 +300,7 @@ export function App() {
   };
 
   const handleClearDrawings = () => {
+    saveSnapshot();
     setLines([]);
     setArrows([]);
   };
@@ -254,6 +325,8 @@ export function App() {
               onClearDrawings={handleClearDrawings}
               onResetPositions={handleResetPositions}
               onBackToMatches={() => navigate('/')}
+              onUndo={handleUndo}
+              canUndo={historyStack.length > 0}
             />
 
             {/* Control Bar */}
@@ -271,7 +344,10 @@ export function App() {
             {/* Full Viewport Grid Layout */}
             <div className="flex-1 grid grid-cols-12 gap-2 overflow-hidden items-center">
               {/* Maximized Landscape Pitch Container */}
-              <div className="col-span-9 xl:col-span-10 flex items-center justify-center w-full h-full overflow-hidden">
+              <div 
+                className="col-span-9 xl:col-span-10 flex items-center justify-center w-full h-full overflow-hidden"
+                onMouseDown={handlePitchActionStart}
+              >
                 <TacticalPitch
                   teamA={teamA}
                   teamB={teamB}

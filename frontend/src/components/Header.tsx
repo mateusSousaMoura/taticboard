@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Team, PhaseState } from '../types/tactics';
-import { RotateCcw, Zap, ArrowLeft } from 'lucide-react';
+import { RotateCcw, Zap, ArrowLeft, Undo2 } from 'lucide-react';
 
 interface HeaderProps {
   teamA: Team;
@@ -10,6 +10,8 @@ interface HeaderProps {
   onClearDrawings: () => void;
   onResetPositions: () => void;
   onBackToMatches: () => void;
+  onUndo: () => void;
+  canUndo: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,10 +21,12 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectPhase,
   onClearDrawings,
   onResetPositions,
-  onBackToMatches
+  onBackToMatches,
+  onUndo,
+  canUndo
 }) => {
   return (
-    <header className="glass-panel w-full px-3 py-2 mb-2 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+    <header className="glass-panel w-full px-3 py-2 mb-2 flex flex-wrap items-center justify-between gap-3 shadow-sm shrink-0">
       {/* Brand & Back Button */}
       <div className="flex items-center gap-2">
         <button
@@ -76,6 +80,21 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Action buttons */}
       <div className="flex items-center gap-2">
+        {/* Undo Button (Ctrl+Z) */}
+        <button
+          onClick={onUndo}
+          disabled={!canUndo}
+          className={`btn btn-sm text-xs flex items-center gap-1 transition-all ${
+            canUndo
+              ? 'btn-info text-white shadow-sm hover:brightness-110'
+              : 'btn-outline-secondary text-slate-500 border-white/10 opacity-50 cursor-not-allowed'
+          }`}
+          title="Desfazer última alteração (Ctrl + Z)"
+        >
+          <Undo2 className="w-3.5 h-3.5" />
+          <span>Desfazer (Ctrl+Z)</span>
+        </button>
+
         <button
           onClick={onClearDrawings}
           className="btn btn-sm btn-outline-warning text-warning flex items-center gap-1 text-xs"
