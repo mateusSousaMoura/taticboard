@@ -1,13 +1,16 @@
 import os
 from providers.base import AbstractFootballProvider
 from providers.football_data_org import FootballDataOrgProvider
+from providers.thesportsdb import TheSportsDBProvider
 
 def get_football_provider() -> AbstractFootballProvider:
     """Factory function to instantiate the active football data provider based on environment config."""
-    provider_type = os.getenv("FOOTBALL_PROVIDER_TYPE", "football_data_org").lower()
+    provider_type = os.getenv("FOOTBALL_PROVIDER_TYPE", "thesportsdb").lower()
 
-    if provider_type == "football_data_org":
+    if provider_type == "thesportsdb":
+        return TheSportsDBProvider()
+    elif provider_type == "football_data_org":
         return FootballDataOrgProvider()
     
-    # Fallback to default provider
-    return FootballDataOrgProvider()
+    # Default fallback
+    return TheSportsDBProvider()

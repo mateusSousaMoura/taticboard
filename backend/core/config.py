@@ -22,10 +22,18 @@ class Settings(BaseModel):
     API_V1_STR: str = "/api"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     
+    # Active Provider Selector ("thesportsdb" or "football_data_org")
+    FOOTBALL_PROVIDER_TYPE: str = os.getenv("FOOTBALL_PROVIDER_TYPE", "thesportsdb")
+    
     # Football Data API Settings
     FOOTBALL_DATA_API_TOKEN: str = os.getenv("FOOTBALL_DATA_API_TOKEN", "")
     FOOTBALL_DATA_API_URL: str = os.getenv("FOOTBALL_DATA_API_URL", "https://api.football-data.org/v4")
-    API_REQUEST_DELAY_SECONDS: float = float(os.getenv("API_REQUEST_DELAY_SECONDS", "7.0"))
+    
+    # TheSportsDB API Settings
+    THESPORTSDB_API_KEY: str = os.getenv("THESPORTSDB_API_KEY", "123")
+    THESPORTSDB_API_URL: str = os.getenv("THESPORTSDB_API_URL", "https://www.thesportsdb.com/api/v1/json")
+    
+    API_REQUEST_DELAY_SECONDS: float = float(os.getenv("API_REQUEST_DELAY_SECONDS", "2.0"))
     
     # Database Settings
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/taticboard")
