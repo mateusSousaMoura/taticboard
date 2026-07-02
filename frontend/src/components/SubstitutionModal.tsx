@@ -19,7 +19,7 @@ export const SubstitutionModal: React.FC<SubstitutionModalProps> = ({
 }) => {
   if (!targetPlayer) return null;
 
-  const currentTeam = targetPlayer.teamId === 'teamA' ? teamA : teamB;
+  const currentTeam = targetPlayer.teamId === teamA.id ? teamA : teamB;
   const isTargetStarting = targetPlayer.isStarting;
 
   // Available candidate players for substitution

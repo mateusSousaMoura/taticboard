@@ -11,7 +11,7 @@ interface TeamPanelProps {
   teamB: Team;
   phaseState: PhaseState;
   onOpenSubModal: (player: Player) => void;
-  onApplyFormation: (teamId: 'teamA' | 'teamB', formationName: string) => void;
+  onApplyFormation: (teamId: string, formationName: string) => void;
 }
 
 export const TeamPanel: React.FC<TeamPanelProps> = ({
@@ -29,7 +29,7 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({
     (activeTab === 'teamB' && phaseState === 'teamB_attack');
 
   const handleFormationChange = (formation: string) => {
-    onApplyFormation(activeTab, formation);
+    onApplyFormation(currentTeam.id, formation);
   };
 
   return (
@@ -77,7 +77,6 @@ export const TeamPanel: React.FC<TeamPanelProps> = ({
             </span>
           </div>
 
-          {/* 2 items per row requirement */}
           <div className="grid grid-cols-2 gap-2">
             {Object.keys(FORMATION_LAYOUTS).map((fmt) => (
               <button

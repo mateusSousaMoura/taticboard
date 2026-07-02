@@ -9,7 +9,7 @@ export interface Player {
   name: string;
   number: number;
   position: PositionCode;
-  teamId: 'teamA' | 'teamB';
+  teamId: string;
   photoUrl?: string;
   x: number; // Percentage on canvas 0 - 100
   y: number; // Percentage on canvas 0 - 100
@@ -17,16 +17,38 @@ export interface Player {
 }
 
 export interface Team {
-  id: 'teamA' | 'teamB';
+  id: string;
   name: string;
   shortName: string;
-  countryCode: string;
-  primaryColor: string; // e.g. '#facc15' for Brazil Yellow
-  secondaryColor: string; // e.g. '#16A34A' for Brazil Green
+  code: string;
+  crest: string; // Flag/Emblem URL
+  primaryColor: string; // e.g. '#facc15'
+  secondaryColor: string; // e.g. '#16A34A'
   textColor: string;
-  formation: string; // e.g. '4-3-3', '4-2-3-1'
+  formation: string; // e.g. '4-3-3'
   starting: Player[];
   bench: Player[];
+}
+
+export interface Competition {
+  id: string;
+  code: string;
+  name: string;
+  type: 'WORLD_CUP' | 'CHAMPIONS_LEAGUE' | 'DOMESTIC_LEAGUE' | 'INTERNATIONAL';
+  emblem: string;
+  season: number;
+  country: string;
+  featured?: boolean;
+}
+
+export interface MatchFixture {
+  id: string;
+  competitionCode: string;
+  utcDate: string;
+  stage: string;
+  status: 'SCHEDULED' | 'LIVE' | 'FINISHED';
+  homeTeam: Team;
+  awayTeam: Team;
 }
 
 export type ToolMode = 'select' | 'highlight' | 'arrow' | 'eraser';
@@ -37,7 +59,7 @@ export interface TacticalLine {
   playerIds?: string[];
   color: string;
   style: 'solid' | 'dashed';
-  teamId?: 'teamA' | 'teamB';
+  teamId?: string;
 }
 
 export interface ArrowAnnotation {
@@ -51,7 +73,7 @@ export interface ArrowAnnotation {
 }
 
 export interface DisplaySettings {
-  viewMode: 'photo' | 'number'; // 'photo' = Foto do jogador, 'number' = Número/Ícone no círculo
+  viewMode: 'photo' | 'number';
   showNames: boolean;
 }
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Team, PhaseState } from '../types/tactics';
-import { RotateCcw, Zap } from 'lucide-react';
+import { RotateCcw, Zap, ArrowLeft } from 'lucide-react';
 
 interface HeaderProps {
   teamA: Team;
@@ -9,6 +9,7 @@ interface HeaderProps {
   onSelectPhase: (phase: PhaseState) => void;
   onClearDrawings: () => void;
   onResetPositions: () => void;
+  onBackToMatches: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,12 +18,22 @@ export const Header: React.FC<HeaderProps> = ({
   phaseState,
   onSelectPhase,
   onClearDrawings,
-  onResetPositions
+  onResetPositions,
+  onBackToMatches
 }) => {
   return (
     <header className="glass-panel w-full px-3 py-2 mb-2 flex flex-wrap items-center justify-between gap-3 shadow-sm">
-      {/* Brand Title */}
+      {/* Brand & Back Button */}
       <div className="flex items-center gap-2">
+        <button
+          onClick={onBackToMatches}
+          className="btn btn-sm btn-outline-light text-slate-200 text-xs flex items-center gap-1"
+          title="Voltar para a seleção de jogos e competições"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Jogos</span>
+        </button>
+
         <h1 className="font-extrabold text-base text-white tracking-tight flex items-center gap-2 mb-0">
           <span>TATIC</span>
           <span className="badge bg-primary text-white font-mono text-[11px]">
@@ -31,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
         </h1>
       </div>
 
-      {/* Select who is attacking with Bootstrap Button Group */}
+      {/* Select who is attacking */}
       <div className="flex items-center gap-2 bg-slate-900/90 p-1 rounded-xl border border-white/10 text-xs">
         <span className="text-slate-400 font-medium px-2 flex items-center gap-1">
           <Zap className="w-3.5 h-3.5 text-warning" />
@@ -63,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Minimalist actions with Bootstrap modern buttons */}
+      {/* Action buttons */}
       <div className="flex items-center gap-2">
         <button
           onClick={onClearDrawings}
