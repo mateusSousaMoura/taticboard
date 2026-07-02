@@ -1,23 +1,20 @@
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
+from core.config import settings
+from core.logging import logger
 
-load_dotenv()
-
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/taticboard")
+DATABASE_URL = settings.DATABASE_URL
 
 try:
     # Try PostgreSQL connection
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-    # Test connection
     with engine.connect() as conn:
-        pass
-except Exception:
+        logger.info(f"[Database] Connected successfully to PostgreSQL: {DATABASE_URL}")
+except Exception as e:
     # Fallback to SQLite for instant local development if PostgreSQL is offline
     SQLITE_URL = "sqlite:///./taticboard.db"
-    print(f"[Database] PostgreSQL connection failed. Falling back to SQLite: {SQLITE_URL}")
+    logger.warning(f"[Database] PostgreSQL connection failed ({e}). Falling back to SQLite: {SQLITE_URL}")
     engine = create_engine(SQLITE_URL, connect_args={"check_same_thread": False})
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

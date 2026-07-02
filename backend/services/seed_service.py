@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from models.football import CompetitionModel, TeamModel, PlayerModel, MatchModel
+from core.logging import logger
 import datetime
 
 def seed_initial_world_cup_data(db: Session):
@@ -8,7 +9,7 @@ def seed_initial_world_cup_data(db: Session):
     if comp_count > 0:
         return
 
-    print("[SeedService] Seeding database with FIFA World Cup 2026 teams and fixtures...")
+    logger.info("[SeedService] Seeding database with FIFA World Cup 2026 teams and fixtures...")
 
     # 1. Competitions
     competitions = [
@@ -74,4 +75,4 @@ def seed_initial_world_cup_data(db: Session):
     db.add_all(matches)
     db.commit()
 
-    print("[SeedService] Seeding completed successfully!")
+    logger.info("[SeedService] Seeding completed successfully!")
