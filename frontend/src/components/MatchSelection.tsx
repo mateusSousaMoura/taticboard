@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Competition, MatchFixture, Team } from '../types/tactics';
 import { fetchCompetitions, fetchMatchesByCompetition, fetchTeams, triggerSyncWorldCup } from '../services/api';
-import { Trophy, Calendar, Sparkles, ArrowRight, Swords, Shield, RefreshCw, Search, X } from 'lucide-react';
+import { Trophy, Calendar, Sparkles, ArrowRight, Swords, Shield, RefreshCw, Search, X, Lock } from 'lucide-react';
 
 interface MatchSelectionProps {
   onSelectMatch: (homeTeam: Team, awayTeam: Team, stage?: string) => void;
 }
 
 export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch }) => {
+  const navigate = useNavigate();
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedCompCode, setSelectedCompCode] = useState<string>('WC');
   const [fixtures, setFixtures] = useState<MatchFixture[]>([]);
@@ -49,7 +51,7 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
 
   const activeCompetition = competitions.find((c) => c.code === selectedCompCode);
 
-  // Filter Fixtures by Search Term (Team Name, Code, or Stage)
+  // Filter Fixtures by Search Term
   const filteredFixtures = fixtures.filter((f) => {
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
@@ -92,7 +94,7 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
             PRANCHA TÁTICA PROFISSIONAL • REST API & POSTGRESQL
           </div>
 
-          {/* Top Corner Custom Matchup Button */}
+          {/* Top Corner Action Buttons */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsModalOpen(true)}
@@ -110,6 +112,15 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>Sincronizar Copa</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/admin')}
+              className="btn btn-sm btn-outline-secondary text-slate-200 border-white/20 hover:bg-white/10 flex items-center gap-1.5 text-xs font-bold"
+              title="Acessar Painel de Administração Autenticado"
+            >
+              <Lock className="w-3.5 h-3.5 text-yellow-400" />
+              <span>Admin</span>
             </button>
           </div>
         </div>

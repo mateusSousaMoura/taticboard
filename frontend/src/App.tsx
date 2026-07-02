@@ -8,6 +8,7 @@ import { TacticalPitch } from './components/TacticalPitch';
 import { TeamPanel } from './components/TeamPanel';
 import { SubstitutionModal } from './components/SubstitutionModal';
 import { MatchSelection } from './components/MatchSelection';
+import { AdminPanel } from './components/AdminPanel';
 
 interface HistorySnapshot {
   teamA: Team;
@@ -38,7 +39,7 @@ export function App() {
 
   const saveSnapshot = useCallback(() => {
     setHistoryStack((prev) => [
-      ...prev.slice(-49), // Keep max 50 snapshots
+      ...prev.slice(-49),
       {
         teamA: JSON.parse(JSON.stringify(teamA)),
         teamB: JSON.parse(JSON.stringify(teamB)),
@@ -178,7 +179,7 @@ export function App() {
     }
   };
 
-  // Update single player position on drag (save snapshot before drag)
+  // Update single player position on drag
   const handleUpdatePlayerPosition = (playerId: string, x: number, y: number) => {
     const updateTeam = (team: Team): Team => ({
       ...team,
@@ -192,7 +193,6 @@ export function App() {
     }
   };
 
-  // Save snapshot before dragging or drawing starts
   const handlePitchActionStart = () => {
     saveSnapshot();
   };
@@ -222,7 +222,7 @@ export function App() {
     setTeamB({ ...teamB, starting: updatedStartingB });
   };
 
-  // Interactive Substitution Execution (Swap bench player with clicked field player)
+  // Interactive Substitution Execution
   const handleConfirmSubstitution = (subOutPlayer: Player, subInPlayer: Player) => {
     saveSnapshot();
     const isTeamA = subOutPlayer.teamId === teamA.id;
@@ -311,7 +311,10 @@ export function App() {
       <Route path="/" element={<MatchSelection onSelectMatch={handleSelectMatch} />} />
       <Route path="/matches" element={<MatchSelection onSelectMatch={handleSelectMatch} />} />
 
-      {/* Route 2: Tactical Board View */}
+      {/* Route 2: Authenticated Admin Panel */}
+      <Route path="/admin" element={<AdminPanel />} />
+
+      {/* Route 3: Tactical Board View */}
       <Route
         path="/pitch"
         element={
@@ -386,7 +389,7 @@ export function App() {
               </div>
             </div>
 
-            {/* Substitution Modal (Secondary / Context Menu Fallback) */}
+            {/* Substitution Modal */}
             <SubstitutionModal
               targetPlayer={subModalPlayer}
               teamA={teamA}

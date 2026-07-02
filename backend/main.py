@@ -6,7 +6,7 @@ from core.config import settings
 from core.logging import logger
 from core.middlewares import setup_middlewares
 from database import engine, Base, SessionLocal
-from routers import football
+from routers import football, admin
 from services.seed_service import seed_initial_world_cup_data
 from services.sync_service import sync_world_cup_job
 
@@ -15,15 +15,16 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Backend API para a Prancha Tática de Futebol (Copa do Mundo e Competições)",
+    description="Backend API com Painel de Administração Autenticado e Sincronização de Futebol (Copa do Mundo)",
     version=settings.VERSION
 )
 
 # Setup Centralized Middlewares (CORS & Request Logging)
 setup_middlewares(app)
 
-# Register API Routers
+# Register Public & Admin API Routers
 app.include_router(football.router)
+app.include_router(admin.router)
 
 scheduler = AsyncIOScheduler()
 
@@ -48,6 +49,7 @@ def read_root():
         "app": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "environment": settings.ENVIRONMENT,
+        "adminPanel": "/admin",
         "worldCupSync": "active",
         "rateLimit": "10 requests/minute"
     }
