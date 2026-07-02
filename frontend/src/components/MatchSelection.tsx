@@ -9,7 +9,6 @@ interface MatchSelectionProps {
 }
 
 export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch }) => {
-  // Initialize with fallback mock data so screen NEVER renders blank
   const [competitions, setCompetitions] = useState<Competition[]>(MOCK_COMPETITIONS);
   const [selectedCompCode, setSelectedCompCode] = useState<string>('WC');
   const [fixtures, setFixtures] = useState<MatchFixture[]>(MOCK_FIXTURES);
@@ -25,9 +24,7 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
     async function loadInitialData() {
       try {
         const compData = await fetchCompetitions();
-        if (compData && compData.length > 0) {
-          setCompetitions(compData);
-        }
+        if (compData && compData.length > 0) setCompetitions(compData);
         
         const teamData = await fetchTeams();
         if (teamData && teamData.length >= 2) {
@@ -36,7 +33,7 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
           setCustomAwayTeamId(teamData[1].id);
         }
       } catch (e) {
-        console.warn('Using fallback mock data for match selection.', e);
+        console.warn('Using fallback data for competitions/teams', e);
       }
     }
     loadInitialData();
@@ -70,58 +67,63 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
     setIsSyncing(true);
     const res = await triggerSyncWorldCup();
     setSyncMessage(res.message);
-    setTimeout(() => {
+    
+    // Refresh fixtures after sync
+    setTimeout(async () => {
+      const matchData = await fetchMatchesByCompetition(selectedCompCode);
+      if (matchData && matchData.length > 0) setFixtures(matchData);
       setIsSyncing(false);
       setSyncMessage(null);
-    }, 4000);
+    }, 3000);
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#0b1120] text-slate-100 p-4 md:p-8 overflow-y-auto">
+    <div className="w-screen h-screen bg-[#0b1120] text-slate-100 p-3 md:p-6 overflow-y-auto custom-scrollbar flex flex-col justify-between">
       {/* Header Banner */}
-      <div className="max-w-6xl mx-auto mb-8 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-bold mb-3">
+      <div className="max-w-7xl mx-auto w-full mb-6 text-center shrink-0">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-bold mb-2">
           <Sparkles className="w-4 h-4" />
-          PRANCHA TÁTICA PROFISSIONAL • FASTAPI & POSTGRES
+          PRANCHA TÁTICA PROFISSIONAL • REST API & POSTGRESQL
         </div>
-        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-2">
+        <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight text-white mb-1">
           TATIC <span className="text-blue-500">PRO</span>
         </h1>
-        <p className="text-slate-400 text-sm md:text-base max-w-2xl mx-auto">
-          Sincronização com o Banco de Dados para a Copa do Mundo FIFA 2026. Escolha uma partida oficial ou monte um duelo livre entre seleções.
+        <p className="text-slate-400 text-xs md:text-sm max-w-2xl mx-auto">
+          Sincronização com PostgreSQL para a Copa do Mundo FIFA 2026. Escolha uma partida oficial ou monte um duelo livre entre seleções.
         </p>
 
-        {/* Sync Status Banner */}
+        {/* Sync Status Alert Banner */}
         {syncMessage && (
-          <div className="mt-3 inline-block px-4 py-1.5 rounded-lg bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 text-xs font-bold">
+          <div className="mt-2 inline-block px-4 py-1 rounded-lg bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 text-xs font-bold animate-pulse">
             {syncMessage}
           </div>
         )}
       </div>
 
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Competitions Selector Bar */}
-        <div className="glass-panel p-4">
-          <div className="flex items-center justify-between mb-3">
+      {/* Main Content Dashboard */}
+      <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col space-y-6 overflow-hidden">
+        {/* Competitions Scrollable Horizontal Selector */}
+        <div className="glass-panel p-3 shrink-0">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-yellow-400" />
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-200">
-                Competições
+              <Trophy className="w-4 h-4 text-yellow-400" />
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                Competições Cadastradas
               </h2>
             </div>
 
             <button
               onClick={handleManualSync}
               disabled={isSyncing}
-              className="btn btn-xs btn-outline-info text-info flex items-center gap-1.5 text-xs font-bold"
-              title="Sincronizar dados da Copa do Mundo no backend"
+              className="btn btn-xs btn-outline-info text-info flex items-center gap-1.5 text-xs font-bold hover:bg-info/10"
+              title="Disparar job de sincronização da Copa no backend"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>Sincronizar Copa</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
             {competitions.map((comp) => (
               <button
                 key={comp.code}
@@ -143,114 +145,116 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
           </div>
         </div>
 
-        {/* Available Fixtures Grid */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-blue-400" />
-              Partidas Cadastradas ({activeCompetition?.name || 'Copa do Mundo'})
+        {/* Matches Grid (Scrollable Container) */}
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <div className="flex items-center justify-between mb-3 shrink-0">
+            <h3 className="text-sm md:text-base font-bold text-white flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-blue-400" />
+              Partidas da Competição ({activeCompetition?.name || 'Copa do Mundo'}) ({fixtures.length})
             </h3>
-            <span className="text-xs text-slate-400 font-mono">
-              PostgreSQL Sync Status: Ativo
+            <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+              PostgreSQL Sincronizado
             </span>
           </div>
 
-          {fixtures.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {fixtures.map((fixture) => (
-                <div
-                  key={fixture.id}
-                  className="glass-panel p-5 hover:border-blue-500/50 transition-all duration-200 group flex flex-col justify-between"
-                >
-                  <div>
-                    {/* Fixture Stage Badge */}
-                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 mb-4 pb-2 border-b border-white/10">
-                      <span className="bg-white/5 px-2 py-0.5 rounded border border-white/10">
-                        {fixture.stage}
-                      </span>
-                      <span>{new Date(fixture.utcDate).toLocaleDateString('pt-BR')}</span>
-                    </div>
-
-                    {/* Matchup Banner */}
-                    <div className="flex items-center justify-between my-2">
-                      {/* Home Team */}
-                      <div className="flex items-center gap-3">
-                        <span 
-                          className="w-10 h-10 rounded-full font-black flex items-center justify-center text-sm border-2 border-slate-900 shadow"
-                          style={{ backgroundColor: fixture.homeTeam?.primaryColor || '#FDE047', color: fixture.homeTeam?.textColor || '#000' }}
-                        >
-                          {fixture.homeTeam?.shortName || 'HOME'}
-                        </span>
-                        <div>
-                          <h4 className="font-bold text-white text-base group-hover:text-blue-400 transition-colors">
-                            {fixture.homeTeam?.name}
-                          </h4>
-                          <span className="text-[10px] text-slate-400 font-mono">Mandante</span>
-                        </div>
-                      </div>
-
-                      <span className="text-xl font-black text-slate-500 italic mx-2">VS</span>
-
-                      {/* Away Team */}
-                      <div className="flex items-center gap-3 text-right flex-row-reverse">
-                        <span 
-                          className="w-10 h-10 rounded-full font-black flex items-center justify-center text-sm border-2 border-white shadow"
-                          style={{ backgroundColor: fixture.awayTeam?.primaryColor || '#2563EB', color: fixture.awayTeam?.textColor || '#FFF' }}
-                        >
-                          {fixture.awayTeam?.shortName || 'AWAY'}
-                        </span>
-                        <div>
-                          <h4 className="font-bold text-white text-base group-hover:text-blue-400 transition-colors">
-                            {fixture.awayTeam?.name}
-                          </h4>
-                          <span className="text-[10px] text-slate-400 font-mono">Visitante</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Action Button */}
-                  <button
-                    onClick={() => onSelectMatch(fixture.homeTeam, fixture.awayTeam, fixture.stage)}
-                    className="mt-5 w-full btn btn-primary font-bold py-2 flex items-center justify-center gap-2 group-hover:bg-blue-600 transition"
+          <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+            {fixtures.length > 0 ? (
+              <div className="responsive-dashboard-grid pb-2">
+                {fixtures.map((fixture) => (
+                  <div
+                    key={fixture.id}
+                    className="glass-panel p-4 hover:border-blue-500/50 transition-all duration-200 group flex flex-col justify-between"
                   >
-                    <span>Abrir Prancha Tática</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="glass-panel p-8 text-center text-slate-400">
-              Nenhuma partida agendada para esta competição no momento. Utilize o confronto personalizado abaixo!
-            </div>
-          )}
+                    <div>
+                      {/* Fixture Stage Badge */}
+                      <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-3 pb-2 border-b border-white/10">
+                        <span className="bg-white/5 px-2 py-0.5 rounded border border-white/10 truncate max-w-[180px]">
+                          {fixture.stage}
+                        </span>
+                        <span>{new Date(fixture.utcDate).toLocaleDateString('pt-BR')}</span>
+                      </div>
+
+                      {/* Matchup Banner */}
+                      <div className="flex items-center justify-between my-2">
+                        {/* Home Team */}
+                        <div className="flex items-center gap-2.5 truncate">
+                          <span 
+                            className="w-9 h-9 rounded-full font-black flex items-center justify-center text-xs border-2 border-slate-900 shadow shrink-0"
+                            style={{ backgroundColor: fixture.homeTeam?.primaryColor || '#FDE047', color: fixture.homeTeam?.textColor || '#000' }}
+                          >
+                            {fixture.homeTeam?.shortName || 'HOME'}
+                          </span>
+                          <div className="truncate">
+                            <h4 className="font-bold text-white text-sm group-hover:text-blue-400 transition-colors truncate">
+                              {fixture.homeTeam?.name}
+                            </h4>
+                            <span className="text-[9px] text-slate-400 font-mono block">Mandante</span>
+                          </div>
+                        </div>
+
+                        <span className="text-base font-black text-slate-500 italic mx-2 shrink-0">VS</span>
+
+                        {/* Away Team */}
+                        <div className="flex items-center gap-2.5 text-right flex-row-reverse truncate">
+                          <span 
+                            className="w-9 h-9 rounded-full font-black flex items-center justify-center text-xs border-2 border-white shadow shrink-0"
+                            style={{ backgroundColor: fixture.awayTeam?.primaryColor || '#2563EB', color: fixture.awayTeam?.textColor || '#FFF' }}
+                          >
+                            {fixture.awayTeam?.shortName || 'AWAY'}
+                          </span>
+                          <div className="truncate">
+                            <h4 className="font-bold text-white text-sm group-hover:text-blue-400 transition-colors truncate">
+                              {fixture.awayTeam?.name}
+                            </h4>
+                            <span className="text-[9px] text-slate-400 font-mono block">Visitante</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <button
+                      onClick={() => onSelectMatch(fixture.homeTeam, fixture.awayTeam, fixture.stage)}
+                      className="mt-4 w-full btn btn-primary btn-sm font-bold py-1.5 flex items-center justify-center gap-2 group-hover:bg-blue-600 transition"
+                    >
+                      <span>Abrir Prancha Tática</span>
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="glass-panel p-8 text-center text-slate-400">
+                Nenhuma partida agendada para esta competição no momento. Utilize o confronto personalizado abaixo!
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Custom Matchup Setup */}
         {teams.length >= 2 && (
-          <div className="glass-panel p-6 border-2 border-blue-500/30">
-            <div className="flex items-center gap-2 mb-4">
-              <Swords className="w-5 h-5 text-yellow-400" />
+          <div className="glass-panel p-4 border-2 border-blue-500/30 shrink-0">
+            <div className="flex items-center gap-2 mb-3">
+              <Swords className="w-4 h-4 text-yellow-400" />
               <div>
-                <h3 className="text-base font-bold text-white">Confronto Personalizado</h3>
-                <p className="text-xs text-slate-400">
-                  Monte um duelo tático entre qualquer seleção da base de dados do banco.
+                <h3 className="text-sm font-bold text-white">Confronto Personalizado</h3>
+                <p className="text-[11px] text-slate-400">
+                  Monte um duelo tático entre qualquer seleção cadastrada no banco de dados.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
               {/* Home Team Picker */}
-              <div className="bg-slate-900/80 p-4 rounded-xl border border-white/10">
-                <label className="block text-xs font-bold text-slate-300 mb-2 flex items-center gap-1.5">
-                  <Shield className="w-4 h-4 text-yellow-400" />
+              <div className="bg-slate-900/80 p-2.5 rounded-xl border border-white/10">
+                <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-yellow-400" />
                   Time A (Mandante / Ataca da Esquerda)
                 </label>
                 <select
                   value={customHomeTeamId}
                   onChange={(e) => setCustomHomeTeamId(e.target.value)}
-                  className="w-full bg-slate-950 text-white p-2.5 rounded-lg border border-white/20 text-sm font-semibold outline-none cursor-pointer"
+                  className="w-full bg-slate-950 text-white p-2 rounded-lg border border-white/20 text-xs font-semibold outline-none cursor-pointer"
                 >
                   {teams.map((t) => (
                     <option key={`home-${t.id}`} value={t.id}>
@@ -261,15 +265,15 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
               </div>
 
               {/* Away Team Picker */}
-              <div className="bg-slate-900/80 p-4 rounded-xl border border-white/10">
-                <label className="block text-xs font-bold text-slate-300 mb-2 flex items-center gap-1.5">
-                  <Shield className="w-4 h-4 text-blue-400" />
+              <div className="bg-slate-900/80 p-2.5 rounded-xl border border-white/10">
+                <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-blue-400" />
                   Time B (Visitante / Ataca da Direita)
                 </label>
                 <select
                   value={customAwayTeamId}
                   onChange={(e) => setCustomAwayTeamId(e.target.value)}
-                  className="w-full bg-slate-950 text-white p-2.5 rounded-lg border border-white/20 text-sm font-semibold outline-none cursor-pointer"
+                  className="w-full bg-slate-950 text-white p-2 rounded-lg border border-white/20 text-xs font-semibold outline-none cursor-pointer"
                 >
                   {teams.map((t) => (
                     <option key={`away-${t.id}`} value={t.id}>
@@ -282,10 +286,10 @@ export const MatchSelection: React.FC<MatchSelectionProps> = ({ onSelectMatch })
 
             <button
               onClick={handleStartCustomMatch}
-              className="w-full btn btn-warning text-slate-950 font-extrabold py-2.5 flex items-center justify-center gap-2 shadow-lg hover:brightness-110 transition"
+              className="w-full btn btn-warning text-slate-950 font-extrabold py-2 text-xs flex items-center justify-center gap-2 shadow-lg hover:brightness-110 transition"
             >
               <span>Iniciar Prancha Tática Personalizada</span>
-              <ArrowRight className="w-5 h-5" />
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         )}
